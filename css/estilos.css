@@ -1,0 +1,219 @@
+/* css/estilos.css */
+
+:root {
+    --primary-color: #0d6efd;
+    --sidebar-width: 260px;
+    --bg-color: #f4f6f9;
+    --header-height: 60px;
+}
+
+body { 
+    display: flex; 
+    height: 100vh; 
+    overflow: hidden; 
+    background-color: var(--bg-color); 
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; 
+}
+
+/* --- SIDEBAR --- */
+#sidebar { 
+    min-width: var(--sidebar-width); 
+    max-width: var(--sidebar-width); 
+    background: #212529; 
+    color: #fff; 
+    display: flex; 
+    flex-direction: column; 
+    transition: all 0.3s ease;
+    z-index: 1000;
+    box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+}
+
+#sidebar .logo { 
+    padding: 20px; 
+    background: var(--primary-color); 
+    text-align: center; 
+    font-weight: bold; 
+    font-size: 1.2rem; 
+    letter-spacing: 1px;
+}
+
+#sidebar ul { 
+    list-style: none; 
+    padding: 0; 
+    margin-top: 10px; 
+}
+
+#sidebar ul li a { 
+    padding: 15px 25px; 
+    display: block; 
+    color: #adb5bd; 
+    text-decoration: none; 
+    border-left: 4px solid transparent; 
+    cursor: pointer; 
+    transition: all 0.2s; 
+    font-weight: 500;
+}
+
+#sidebar ul li a:hover, 
+#sidebar ul li a.active { 
+    background: #2c3034; 
+    color: #fff; 
+    border-left-color: var(--primary-color); 
+}
+
+#sidebar ul li a i { margin-right: 12px; font-size: 1.1em; }
+
+/* Botón Salir */
+#sidebar ul li a.text-danger:hover {
+    background: #3e2121;
+    border-left-color: #dc3545;
+}
+
+/* --- CONTENIDO --- */
+#content { 
+    flex: 1; 
+    display: flex; 
+    flex-direction: column; 
+    overflow: hidden; 
+    position: relative;
+}
+
+/* Top Bar (Móvil) */
+.top-bar {
+    display: none;
+    background: white;
+    padding: 10px 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    align-items: center;
+    justify-content: space-between;
+    height: var(--header-height);
+}
+
+#main-area {
+    flex: 1;
+    padding: 25px;
+    overflow-y: auto;
+}
+
+/* Vistas */
+.view-section { 
+    display: none; 
+    animation: fadeIn 0.4s ease-out; 
+}
+.view-section.active { display: block; }
+
+@keyframes fadeIn { 
+    from { opacity: 0; transform: translateY(10px); } 
+    to { opacity: 1; transform: translateY(0); } 
+}
+
+/* Tarjetas */
+.card-dashboard { 
+    background: white; 
+    border-radius: 12px; 
+    border: 1px solid #eef0f3; 
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03); 
+    padding: 25px; 
+    margin-bottom: 20px; 
+    transition: transform 0.2s;
+}
+
+.card-dashboard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.06);
+}
+
+/* Estilos Sucursales */
+.sucursal-bloque {
+    border: 1px solid #dee2e6;
+    border-left: 5px solid var(--primary-color);
+    padding: 20px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    background-color: #ffffff;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+}
+
+.form-section-title {
+    color: var(--primary-color);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 0.9rem;
+    border-bottom: 2px solid #e9ecef;
+    padding-bottom: 8px;
+    margin-top: 25px;
+    margin-bottom: 20px;
+    letter-spacing: 0.5px;
+}
+
+/* --- ESTILOS DE LOGIN (NUEVO) --- */
+#login-overlay {
+    backdrop-filter: blur(5px); /* Efecto borroso */
+}
+
+#login-overlay .card {
+    border: none;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2) !important;
+}
+
+#login-overlay input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
+    border-color: var(--primary-color);
+}
+
+/* --- RESPONSIVE (Móvil) --- */
+@media (max-width: 768px) {
+    #sidebar {
+        position: fixed;
+        height: 100%;
+        margin-left: -260px; 
+    }
+    
+    #sidebar.active {
+        margin-left: 0; 
+    }
+
+    .top-bar {
+        display: flex; 
+    }
+
+    #overlay {
+        display: none;
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 900;
+        backdrop-filter: blur(2px);
+    }
+    #overlay.active { display: block; }
+    
+    .table-responsive {
+        font-size: 0.85rem; 
+    }
+    
+    /* Ajuste en móviles para el padding */
+    #main-area { padding: 15px; }
+}
+/* --- ESTILOS DE IMPRESIÓN (TICKET) --- */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+    #areaImpresion, #areaImpresion * {
+        visibility: visible;
+    }
+    #areaImpresion {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        background: white;
+        color: black;
+    }
+    /* Ocultar elementos del sistema */
+    #sidebar, #login-overlay, .modal-backdrop, .modal {
+        display: none !important;
+    }
+}

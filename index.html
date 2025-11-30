@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP ARZUPOLO.SAC</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="css/estilos.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <div id="login-overlay" style="position: fixed; top:0; left:0; width:100%; height:100%; background: #0d6efd; z-index: 9999; display: flex; justify-content: center; align-items: center;">
+        <div class="card p-4 shadow-lg" style="width: 350px; border-radius: 15px;">
+            <div class="text-center mb-4">
+                <h3 class="fw-bold text-primary"><i class="bi bi-box-seam-fill"></i> ARZUPOLO ERP</h3>
+                <p class="text-muted">Acceso Corporativo</p>
+            </div>
+            <div class="mb-3">
+                <label class="fw-bold small">Usuario</label>
+                <input type="text" id="loginUser" class="form-control" placeholder="admin">
+            </div>
+            <div class="mb-4">
+                <label class="fw-bold small">Contraseña</label>
+                <input type="password" id="loginPass" class="form-control" placeholder="********">
+            </div>
+            <div class="text-danger text-center mb-3 small fw-bold" id="loginError"></div>
+            <button id="btnLogin" class="btn btn-primary w-100 py-2" onclick="iniciarSesion()">INGRESAR</button>
+        </div>
+    </div>
+
+    <nav id="sidebar">
+        <div class="logo p-3 text-center fw-bold fs-5 bg-primary text-white">
+            <i class="bi bi-buildings"></i> ARZUPOLO
+        </div>
+        <div class="text-center py-2 bg-dark border-bottom border-secondary">
+            <small id="indicador-conexion" class="text-white-50 fw-bold" style="font-size: 0.75rem; cursor: pointer;" onclick="verificarConexion()">
+                <span class="spinner-border spinner-border-sm"></span> Iniciando...
+            </small>
+        </div>
+        
+        <div class="text-center mt-3 mb-2">
+            <div class="small text-white-50">Conectado como:</div>
+            <div id="lblUsuarioActual" class="fw-bold text-white small">Cargando...</div>
+        </div>
+
+        <div class="accordion accordion-flush bg-transparent" id="menuAccordion">
+            <div class="accordion-item bg-transparent border-0">
+                <h2 class="accordion-header">
+                    <button class="accordion-button bg-transparent text-white shadow-none" type="button" onclick="nav('inicio')">
+                        <i class="bi bi-speedometer2 me-2"></i> Dashboard
+                    </button>
+                </h2>
+            </div>
+            <div class="accordion-item bg-transparent border-0">
+                <h2 class="accordion-header" id="headingVentas">
+                    <button class="accordion-button collapsed bg-transparent text-white shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseVentas">
+                        <i class="bi bi-cart-check me-2"></i> Comercial
+                    </button>
+                </h2>
+                <div id="collapseVentas" class="accordion-collapse collapse show" data-bs-parent="#menuAccordion">
+                    <div class="accordion-body p-0">
+                        <ul class="list-unstyled ps-3">
+                            <li><a href="#" class="text-white-50 text-decoration-none d-block py-2 active" onclick="nav('ventas-arzuka')">
+                                <i class="bi bi-shop me-2"></i> Ventas Arzuka
+                            </a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+             <div class="accordion-item bg-transparent border-0 mt-3">
+                 <h2 class="accordion-header">
+                    <button class="accordion-button collapsed bg-transparent text-danger shadow-none" type="button" onclick="cerrarSesion()">
+                        <i class="bi bi-box-arrow-left me-2"></i> Cerrar Sesión
+                    </button>
+                </h2>
+            </div>
+        </div>
+    </nav>
+
+    <div id="content">
+        <div class="top-bar d-md-none d-flex justify-content-between align-items-center p-3 bg-white shadow-sm">
+            <span class="fw-bold text-primary">ARZUPOLO</span>
+            <button class="btn btn-light border" onclick="toggleSidebar()"><i class="bi bi-list h4 m-0"></i></button>
+        </div>
+
+        <div id="main-area">
+            
+            <div id="view-ventas-arzuka" class="view-section active">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="m-0 text-primary"><i class="bi bi-shop"></i> Ventas Arzuka</h2>
+                    <div>
+                        <button class="btn btn-outline-secondary me-2" onclick="cargarVentasArzuka()"><i class="bi bi-arrow-clockwise"></i></button>
+                        <button class="btn btn-success fw-bold px-4" onclick="abrirModalNuevaVenta()">+ Nueva Venta</button>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-4">
+                        <div class="card p-3 border-0 shadow-sm border-start border-4 border-success">
+                            <small class="text-muted fw-bold">VENTAS HOY</small>
+                            <h3 class="fw-bold text-success mb-0" id="kpiVentasHoy">S/ 0.00</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-3 border-0 shadow-sm border-start border-4 border-primary">
+                            <small class="text-muted fw-bold">TICKETS GENERADOS</small>
+                            <h3 class="fw-bold text-primary mb-0" id="kpiTicketsHoy">0</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-3 border-0 shadow-sm border-start border-4 border-warning">
+                            <small class="text-muted fw-bold">POR COBRAR</small>
+                            <h3 class="fw-bold text-warning mb-0" id="kpiPendienteHoy">S/ 0.00</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="m-0 fw-bold text-muted">Tendencia de Ventas (Últimos Movimientos)</h6>
+                    </div>
+                    <div class="card-body" style="height: 300px;">
+                        <canvas id="graficoVentas"></canvas>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm border-0">
+                    <div class="card-header bg-white py-3">
+                        <h6 class="m-0 fw-bold text-muted">Últimas Transacciones</h6>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light text-secondary small">
+                                <tr>
+                                    <th>Ticket</th>
+                                    <th>Fecha</th>
+                                    <th>Cliente</th>
+                                    <th>Total</th>
+                                    <th>Estado</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaVentasBody" class="small">
+                                <tr><td colspan="6" class="text-center py-4 text-muted">Cargando datos...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalNuevaVenta" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title"><i class="bi bi-receipt"></i> Nuevo Ticket de Venta</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-light">
+                    <form id="formVenta">
+                        <div class="card border-0 shadow-sm mb-3">
+                            <div class="card-body">
+                                <div class="row g-2">
+                                    <div class="col-md-6">
+                                        <label class="small fw-bold text-muted">CLIENTE</label>
+                                        <input type="text" id="txtClienteBuscar" class="form-control" list="listaClientes" placeholder="Buscar o escribir nuevo..." autocomplete="off">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="small fw-bold text-muted">EVENTO</label>
+                                        <select id="selTipoEvento" class="form-select"><option value="Normal">Venta Normal</option></select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="small fw-bold text-muted">FECHA ENTREGA</label>
+                                        <input type="date" id="dateEntrega" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="row g-2 mt-2">
+                                    <div class="col-12">
+                                        <label class="small fw-bold text-muted">OBSERVACIONES</label>
+                                        <textarea id="txtObservaciones" class="form-control form-control-sm" rows="1" placeholder="Detalles del pedido..."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card border-0 shadow-sm mb-3">
+                            <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                                <span class="fw-bold text-primary small">PRODUCTOS</span>
+                                <button type="button" class="btn btn-sm btn-primary" onclick="agregarLineaProducto()">+ Agregar Ítem</button>
+                            </div>
+                            <div class="card-body p-0">
+                                <table class="table table-sm mb-0 align-middle">
+                                    <thead class="table-light small text-muted">
+                                        <tr>
+                                            <th style="width: 40%">Producto</th>
+                                            <th style="width: 15%" class="text-center">Cant.</th>
+                                            <th style="width: 20%" class="text-end">Precio</th>
+                                            <th style="width: 20%" class="text-end">Subtotal</th>
+                                            <th style="width: 5%"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bodyTablaVentas"></tbody>
+                                </table>
+                            </div>
+                            <div class="card-footer bg-white text-end">
+                                <h4 class="m-0 fw-bold text-success">Total: S/ <span id="lblTotalVenta">0.00</span></h4>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <h6 class="fw-bold small text-muted mb-3">PAGO</h6>
+                                        <div class="row g-2">
+                                            <div class="col-6">
+                                                <label class="small">A Cuenta (S/)</label>
+                                                <input type="number" id="txtACuenta" class="form-control fw-bold" value="0" oninput="calcularSaldo()">
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="small">Método</label>
+                                                <select id="selMetodoPago" class="form-select"><option value="Efectivo">Efectivo</option></select>
+                                            </div>
+                                            <div class="col-12 pt-2">
+                                                <div class="alert alert-warning py-1 mb-0 small text-center fw-bold">
+                                                    Saldo: S/ <span id="lblSaldoPendiente">0.00</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <div class="form-check form-switch mb-2">
+                                            <input class="form-check-input" type="checkbox" id="chkDelivery" onchange="toggleDelivery()">
+                                            <label class="form-check-label fw-bold small" for="chkDelivery">¿Es Delivery?</label>
+                                        </div>
+                                        <div id="divDelivery" class="d-none">
+                                            <input type="text" id="txtDireccion" class="form-control form-control-sm mb-2" placeholder="Dirección">
+                                            <input type="text" id="txtReferencia" class="form-control form-control-sm" placeholder="Referencia">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success fw-bold px-4" onclick="guardarVenta()">
+                        <i class="bi bi-save"></i> REGISTRAR
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalDetalleTicket" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title" id="lblTituloTicket">Ticket #...</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Producto</th>
+                                    <th>Descripción</th>
+                                    <th class="text-center">Cant.</th>
+                                    <th class="text-end">P. Unit</th>
+                                    <th class="text-end">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bodyDetalleTicket">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button type="button" class="btn btn-primary" onclick="alert('Función Imprimir próximamente')"><i class="bi bi-printer"></i> Imprimir</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <datalist id="listaClientes"></datalist>
+    <datalist id="listaProductos"></datalist>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/core.js"></script>
+    <script src="js/ventas_arzuka.js"></script>
+    <script src="js/usuarios.js"></script>
+</body>
+</html>
