@@ -1,53 +1,86 @@
 <!-- VISTA: VENTAS ARZUKA -->
 <div id="view-ventas-arzuka" class="view-section active">
     
-    <!-- ENCABEZADO Y BOTONES DE ACCIÓN -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="m-0 text-primary"><i class="bi bi-shop"></i> Ventas Arzuka</h2>
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="m-0 text-primary"><i class="bi bi-graph-up-arrow"></i> Dashboard Comercial</h2>
         <div>
-            <!-- Botón 1: Recargar visualmente (sin llamar a Loyverse) -->
-            <button class="btn btn-outline-secondary me-1" onclick="cargarVentasArzuka()" title="Actualizar lista">
-                <i class="bi bi-arrow-clockwise"></i>
-            </button>
-            
-            <!-- Botón 2: Sincronizar con Loyverse (NUEVO) -->
-            <button class="btn btn-primary me-2 fw-bold" onclick="sincronizarLoyverse()" title="Descargar ventas nuevas de Loyverse">
+            <button class="btn btn-primary me-2 fw-bold shadow-sm" onclick="sincronizarLoyverse()">
                 <i class="bi bi-cloud-download-fill me-1"></i> Sincronizar
             </button>
-            
-            <!-- Botón 3: Crear venta manual -->
-            <button class="btn btn-success fw-bold px-4" onclick="abrirModalNuevaVenta()">
+            <button class="btn btn-success fw-bold shadow-sm px-4" onclick="abrirModalNuevaVenta()">
                 <i class="bi bi-plus-lg"></i> Nueva Venta
             </button>
         </div>
     </div>
 
-    <!-- TARJETAS DE INDICADORES (KPIs) -->
-    <div class="row g-3 mb-4">
-        <div class="col-md-4">
-            <div class="card p-3 border-0 shadow-sm border-start border-4 border-success">
-                <small class="text-muted fw-bold">VENTAS HOY</small>
-                <h3 class="fw-bold text-success mb-0" id="kpiVentasHoy">S/ 0.00</h3>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card p-3 border-0 shadow-sm border-start border-4 border-primary">
-                <small class="text-muted fw-bold">TICKETS GENERADOS</small>
-                <h3 class="fw-bold text-primary mb-0" id="kpiTicketsHoy">0</h3>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card p-3 border-0 shadow-sm border-start border-4 border-warning">
-                <small class="text-muted fw-bold">POR COBRAR</small>
-                <h3 class="fw-bold text-warning mb-0" id="kpiPendienteHoy">S/ 0.00</h3>
+    <!-- BARRA DE FILTROS -->
+    <div class="card shadow-sm border-0 mb-4 bg-white">
+        <div class="card-body py-2">
+            <div class="row g-2 align-items-end">
+                <div class="col-6 col-md-3">
+                    <label class="small fw-bold text-muted">Desde</label>
+                    <input type="date" id="filtroFechaDesde" class="form-control form-control-sm bg-light">
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="small fw-bold text-muted">Hasta</label>
+                    <input type="date" id="filtroFechaHasta" class="form-control form-control-sm bg-light">
+                </div>
+                <div class="col-md-4">
+                    <label class="small fw-bold text-muted">Vendedor</label>
+                    <select id="filtroVendedor" class="form-select form-select-sm bg-light">
+                        <option value="Todos">Todos los vendedores</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-dark btn-sm w-100 fw-bold" onclick="cargarVentasArzuka()">
+                        <i class="bi bi-funnel-fill"></i> Filtrar
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- GRÁFICO DE TENDENCIA -->
+    <!-- KPIs DINÁMICOS -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card p-3 border-0 shadow-sm border-start border-4 border-success h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-muted fw-bold text-uppercase">Ventas del Periodo</small>
+                        <h3 class="fw-bold text-success mb-0" id="kpiTotalPeriodo">S/ 0.00</h3>
+                    </div>
+                    <i class="bi bi-cash-coin fs-1 text-success opacity-25"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 border-0 shadow-sm border-start border-4 border-primary h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-muted fw-bold text-uppercase">Tickets</small>
+                        <h3 class="fw-bold text-primary mb-0" id="kpiCantidadTickets">0</h3>
+                    </div>
+                    <i class="bi bi-receipt fs-1 text-primary opacity-25"></i>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card p-3 border-0 shadow-sm border-start border-4 border-warning h-100">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <small class="text-muted fw-bold text-uppercase">Ticket Promedio</small>
+                        <h3 class="fw-bold text-warning mb-0" id="kpiTicketPromedio">S/ 0.00</h3>
+                    </div>
+                    <i class="bi bi-pie-chart fs-1 text-warning opacity-25"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GRÁFICO -->
     <div class="card shadow-sm border-0 mb-4">
-        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 fw-bold text-muted">Tendencia de Ventas (Últimos Movimientos)</h6>
+        <div class="card-header bg-white py-3">
+            <h6 class="m-0 fw-bold text-muted"><i class="bi bi-bar-chart-line-fill me-2"></i> Tendencia de Ventas</h6>
         </div>
         <div class="card-body" style="height: 300px;">
             <canvas id="graficoVentas"></canvas>
@@ -56,19 +89,20 @@
 
     <!-- TABLA DE VENTAS -->
     <div class="card shadow-sm border-0">
-        <div class="card-header bg-white py-3">
-            <h6 class="m-0 fw-bold text-muted">Últimas Transacciones</h6>
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 fw-bold text-muted">Detalle de Transacciones</h6>
+            <span class="badge bg-light text-secondary" id="lblCountTabla">0 registros</span>
         </div>
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light text-secondary small">
+        <div class="table-responsive" style="max-height: 400px;">
+            <table class="table table-hover align-middle mb-0 table-sm">
+                <thead class="table-light text-secondary small sticky-top">
                     <tr>
                         <th>Ticket</th>
                         <th>Fecha</th>
                         <th>Cliente</th>
-                        <th>Total</th>
-                        <th>Estado</th>
-                        <th>Acción</th>
+                        <th class="text-end">Total</th>
+                        <th>Vendedor</th>
+                        <th class="text-center">Acción</th>
                     </tr>
                 </thead>
                 <tbody id="tablaVentasBody" class="small">

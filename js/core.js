@@ -1,136 +1,163 @@
 /**
  * js/core.js
- * Núcleo de la aplicación: Manejo de Estado, Navegación y Diagnóstico.
+ * Núcleo de la aplicación: API, Caché, Navegación y Utilidades.
+ * VERSIÓN 4.0: Soporte para Caché Inteligente.
  */
 
-// Estado global de la aplicación
-let globalData = {
-    listas: {},
-    proveedores: [],
-    sucursales: [],
-    usuarios: [],
-    cache: {
-        proveedores: null,
-        usuarios: null,
-        timestamp: null
+// =============================================================================
+// 1. CONFIGURACIÓN Y CACHÉ
+// =============================================================================
+
+const Config = {
+    // URL del Script de Google (Debe ser la misma de tu Deploy)
+    URL_API_PRINCIPAL: "https://script.google.com/macros/s/AKfycbxfHHUGrAPAJGCGLnX4LPoqsE4OECHO4jYuWkprw2FJHsgNHaCfy9-YCEOZ-PsMMbFa/exec"
+};
+
+const CacheSystem = {
+    // Clave para saber si el caché está activado globalmente
+    KEY_ENABLED: 'arzuka_cache_enabled',
+    
+    isEnabled: () => localStorage.getItem(CacheSystem.KEY_ENABLED) === 'true',
+    
+    toggle: (estado) => {
+        localStorage.setItem(CacheSystem.KEY_ENABLED, estado);
+        if(!estado) CacheSystem.clear(); // Si se apaga, limpiar basura
+    },
+
+    get: (key) => {
+        if (!CacheSystem.isEnabled()) return null;
+        const item = localStorage.getItem(key);
+        if (!item) return null;
+        
+        const parsed = JSON.parse(item);
+        // Validar tiempo de vida (TTL) - Ejemplo: 1 hora (3600000 ms)
+        // Para ventas del día, usaremos un TTL corto (5 min)
+        const now = Date.now();
+        if (now > parsed.expiry) {
+            localStorage.removeItem(key);
+            return null;
+        }
+        return parsed.value;
+    },
+
+    set: (key, value, ttlMinutes = 60) => {
+        if (!CacheSystem.isEnabled()) return;
+        const item = {
+            value: value,
+            expiry: Date.now() + (ttlMinutes * 60 * 1000)
+        };
+        localStorage.setItem(key, JSON.stringify(item));
+    },
+
+    clear: () => {
+        // Borra solo items de caché, no la sesión de usuario
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('cache_')) localStorage.removeItem(key);
+        });
     }
 };
 
-// --- DIAGNÓSTICO DE CONEXIÓN ---
+// =============================================================================
+// 2. CONECTOR API (CEREBRO)
+// =============================================================================
+
+/**
+ * Llama al Backend. Soporta Caché.
+ * @param {string} servicio - Nombre del módulo (log)
+ * @param {string} accion - Función del Backend
+ * @param {Object} payload - Datos a enviar
+ * @param {Object} options - { useCache: true, ttl: 10 }
+ */
+async function callAPI(servicio, accion, payload = {}, options = {}) {
+    console.log(`📡 [${servicio}] ${accion}...`);
+
+    // 1. INTENTAR LEER DE CACHÉ (Si está habilitado y solicitado)
+    const cacheKey = `cache_${accion}_${JSON.stringify(payload)}`;
+    
+    if (options.useCache && CacheSystem.isEnabled()) {
+        const cachedData = CacheSystem.get(cacheKey);
+        if (cachedData) {
+            console.log(`⚡ [${servicio}] Recuperado de Caché`);
+            return cachedData;
+        }
+    }
+
+    // 2. LLAMADA A LA RED
+    try {
+        const respuesta = await fetch(Config.URL_API_PRINCIPAL, {
+            method: "POST",
+            mode: "cors",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ accion: accion, payload: payload })
+        });
+
+        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
+
+        const datos = await respuesta.json();
+
+        // 3. GUARDAR EN CACHÉ (Si fue exitoso y se solicitó)
+        if (datos.success && options.useCache) {
+            CacheSystem.set(cacheKey, datos, options.ttl || 60); // Default 60 min
+        }
+        
+        return datos;
+
+    } catch (error) {
+        console.error(`🔥 [${servicio}] Fallo:`, error);
+        return { success: false, error: error.message };
+    }
+}
+
+// =============================================================================
+// 3. NAVEGACIÓN Y UI
+// =============================================================================
+
 document.addEventListener("DOMContentLoaded", () => {
-    verificarConexion();
+    // Verificar conexión al cargar (sin caché, siempre fresco)
+    // Esto se llama desde app.js, así que aquí solo definimos la función
 });
 
 async function verificarConexion() {
     const indicador = document.getElementById('indicador-conexion');
     if(!indicador) return;
 
-    indicador.innerHTML = '<span class="spinner-border spinner-border-sm text-warning"></span> Conectando...';
+    indicador.innerHTML = '<span class="spinner-border spinner-border-sm text-warning"></span> ...';
     
     try {
-        // Usamos la acción 'testConexion' que ya programamos en el Backend
-        const respuesta = await callAPI('sistema', 'testConexion');
-        
-        if (respuesta.success) {
+        const res = await callAPI('sistema', 'testConexion');
+        if (res.success) {
             indicador.innerHTML = '<i class="bi bi-circle-fill text-success"></i> Online';
-            indicador.title = `Conectado: ${respuesta.mensaje}`;
+            indicador.title = res.mensaje;
         } else {
-            indicador.innerHTML = '<i class="bi bi-exclamation-circle-fill text-danger"></i> Error API';
+            indicador.innerHTML = '<i class="bi bi-exclamation-circle-fill text-danger"></i> Error';
         }
     } catch (e) {
         indicador.innerHTML = '<i class="bi bi-wifi-off text-danger"></i> Offline';
-        console.error("Fallo verificación de conexión:", e);
     }
 }
 
-// --- NAVEGACIÓN ---
 function nav(vista) {
-    // Ocultar todas las vistas y desactivar menús
+    // Ocultar todas las vistas
     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('#sidebar a').forEach(el => el.classList.remove('active'));
     
-    // Activar vista
+    // Activar vista destino
     const vistaEl = document.getElementById('view-' + vista);
     if(vistaEl) vistaEl.classList.add('active');
     
-    // En móvil, cerrar el menú al hacer clic
+    // Cerrar menú móvil
     toggleSidebar(false);
 
-    // Carga diferida de datos (Lazy Loading)
-    if(vista === 'proveedores') {
-        if(typeof cargarProveedores === 'function') cargarProveedores();
-    }
-    
-    if(vista === 'usuarios') {
-        if(typeof cargarUsuarios === 'function') cargarUsuarios();
-    }
-    
+    // Lógica de carga perezosa (Lazy Load)
     if(vista === 'ventas-arzuka') {
         if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
     }
-
-    // Scroll al inicio para mejor UX
-    window.scrollTo(0, 0);
 }
 
-// --- UTILIDADES UI ---
 function toggleSidebar(forceState = null) {
     const sidebar = document.getElementById('sidebar');
-    const menuOverlay = document.getElementById('overlay'); 
+    if (!sidebar) return;
     
-    if (forceState === false) {
-        sidebar.classList.remove('active');
-        if(menuOverlay) menuOverlay.classList.remove('active');
-    } else {
-        sidebar.classList.toggle('active');
-        if(menuOverlay) menuOverlay.classList.toggle('active');
-    }
-}
-
-function limpiarCache() {
-    globalData.cache = {
-        proveedores: null,
-        usuarios: null,
-        timestamp: null
-    };
-}
-async function cargarVistaConfiguracion() {
-    // 1. Ocultar otras vistas
-    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-    
-    // 2. Verificar si ya existe el contenedor de configuración
-    let contenedor = document.getElementById('view-configuracion');
-    
-    if (!contenedor) {
-        // Si no existe, crearlo dinámicamente usando el loader
-        const mainArea = document.getElementById('main-area');
-        const include = document.createElement('arzuka-include');
-        include.setAttribute('src', 'components/vista-configuracion.html');
-        
-        // Escuchar cuando termine de cargar para inicializar los datos
-        include.addEventListener('loaded', () => {
-            cargarConfiguracion(); // Función de js/configuracion.js
-        });
-        
-        mainArea.appendChild(include);
-    } else {
-        // Si ya existe, solo mostrarlo y recargar datos
-        contenedor.classList.add('active');
-        cargarConfiguracion();
-    }
-}
-async function cargarVistaCRM() {
-    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-    let contenedor = document.getElementById('view-crm');
-    
-    if (!contenedor) {
-        const mainArea = document.getElementById('main-area');
-        const include = document.createElement('arzuka-include');
-        include.setAttribute('src', 'components/vista-crm.html');
-        include.addEventListener('loaded', () => cargarCRM());
-        mainArea.appendChild(include);
-    } else {
-        contenedor.classList.add('active');
-        cargarCRM();
-    }
+    if (forceState === false) sidebar.classList.remove('active');
+    else sidebar.classList.toggle('active');
 }
