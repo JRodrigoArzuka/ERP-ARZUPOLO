@@ -344,7 +344,7 @@
                             </div>
                         </div>
 
-                        <!-- TAB 2: DELIVERY -->
+                        <!-- TAB 2: DELIVERY (ACTUALIZADO: Botón Copiar) -->
                         <div class="tab-pane fade" id="tab-delivery">
                             <div class="row justify-content-center">
                                 <div class="col-md-8">
@@ -354,6 +354,11 @@
                                     </div>
                                     
                                     <div id="panelGestionDelivery" class="d-none">
+                                        <div class="d-flex justify-content-end mb-2">
+                                            <button class="btn btn-sm btn-outline-info fw-bold" onclick="copiarDatosClienteDelivery()">
+                                                <i class="bi bi-clipboard-check"></i> Copiar Datos Cliente
+                                            </button>
+                                        </div>
                                         <div class="row g-3">
                                             <div class="col-12">
                                                 <label class="small text-muted fw-bold">DIRECCIÓN ENTREGA</label>
@@ -399,28 +404,20 @@
                                 <input type="file" id="fileGestionFoto" class="d-none" accept="image/*" onchange="subirFotoSeleccionada()">
                             </div>
                             <div id="galeriaFotos" class="row g-3">
+                                <!-- Aquí se inyectan las fotos -->
                                 <div class="col-12 text-center text-muted py-5">No hay fotos cargadas.</div>
                             </div>
                         </div>
 
-                        <!-- TAB 4: EDITAR -->
+                        <!-- TAB 4: EDITAR (ACTUALIZADO: Nuevos Campos y Selects) -->
                         <div class="tab-pane fade" id="tab-editar">
-                            <div class="alert alert-info small"><i class="bi bi-info-circle"></i> Solo personal autorizado puede modificar estos datos.</div>
-                            <div class="row g-3">
+                            <div class="alert alert-info small py-2"><i class="bi bi-info-circle"></i> Solo personal autorizado puede modificar estos datos.</div>
+                            
+                            <h6 class="text-muted fw-bold small border-bottom pb-1 mb-3">Datos Generales</h6>
+                            <div class="row g-3 mb-4">
                                 <div class="col-md-6">
-                                    <label class="small fw-bold">Estado del Pedido</label>
-                                    <select id="selGestionEstado" class="form-select">
-                                        <option value="Pendiente">Pendiente</option>
-                                        <option value="Pagado">Pagado</option>
-                                        <option value="En Produccion">En Producción</option>
-                                        <option value="Listo para Entrega">Listo para Entrega</option>
-                                        <option value="Entregado">Entregado</option>
-                                        <option value="Anulado">Anulado</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="small fw-bold">Fecha Evento</label>
-                                    <input type="date" id="dateGestionEvento" class="form-control">
+                                    <label class="small fw-bold">Tipo Evento</label>
+                                    <select id="selGestionTipoEvento" class="form-select"></select>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="small fw-bold">Turno</label>
@@ -431,9 +428,44 @@
                                         <option>Turno 3: 1.30pm a 3pm</option>
                                     </select>
                                 </div>
+                                <div class="col-md-6">
+                                    <label class="small fw-bold">F. Evento</label>
+                                    <input type="date" id="dateGestionEvento" class="form-control">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small fw-bold">F. Entrega</label>
+                                    <input type="date" id="dateGestionEntrega" class="form-control">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small fw-bold">Estado *</label>
+                                    <select id="selGestionEstado" class="form-select border-primary">
+                                        <option value="Pendiente">Pendiente</option>
+                                        <option value="Pagado">Pagado</option>
+                                        <option value="En Produccion">En Producción</option>
+                                        <option value="Listo para Entrega">Listo para Entrega</option>
+                                        <option value="Entregado">Entregado</option>
+                                        <option value="Anulado">Anulado</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="small fw-bold">Vendedor *</label>
+                                    <select id="selGestionVendedor" class="form-select border-primary"></select>
+                                </div>
+                            </div>
+
+                            <h6 class="text-muted fw-bold small border-bottom pb-1 mb-3">Detalles del Producto</h6>
+                            <div class="row g-3">
                                 <div class="col-12">
-                                    <label class="small fw-bold">Observaciones</label>
-                                    <textarea id="txtGestionObs" class="form-control" rows="3"></textarea>
+                                    <label class="small fw-bold">Identidad (Nombre Torta)</label>
+                                    <input type="text" id="txtGestionIdentidad" class="form-control" placeholder="Ej: Torta Pocoyó">
+                                </div>
+                                <div class="col-12">
+                                    <label class="small fw-bold">Texto / Temática</label>
+                                    <textarea id="txtGestionTematica" class="form-control" rows="2" placeholder="Detalles de personalización..."></textarea>
+                                </div>
+                                <div class="col-12">
+                                    <label class="small fw-bold">Observaciones Generales</label>
+                                    <textarea id="txtGestionObs" class="form-control" rows="2"></textarea>
                                 </div>
                                 <div class="col-12 text-end">
                                     <button class="btn btn-warning fw-bold px-4" onclick="guardarEdicion()">
