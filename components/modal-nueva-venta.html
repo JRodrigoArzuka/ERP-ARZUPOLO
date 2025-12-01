@@ -1,0 +1,108 @@
+<!-- MODAL: NUEVA VENTA (CREAR) -->
+<div class="modal fade" id="modalNuevaVenta" tabindex="-1" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-receipt"></i> Nuevo Ticket de Venta</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body bg-light">
+                <form id="formVenta">
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-body">
+                            <div class="row g-2">
+                                <div class="col-md-6">
+                                    <label class="small fw-bold text-muted">CLIENTE</label>
+                                    <input type="text" id="txtClienteBuscar" class="form-control" list="listaClientes" placeholder="Buscar o escribir nuevo..." autocomplete="off">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="small fw-bold text-muted">EVENTO</label>
+                                    <select id="selTipoEvento" class="form-select"><option value="Normal">Venta Normal</option></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="small fw-bold text-muted">FECHA ENTREGA</label>
+                                    <input type="date" id="dateEntrega" class="form-control">
+                                </div>
+                            </div>
+                            <div class="row g-2 mt-2">
+                                <div class="col-12">
+                                    <label class="small fw-bold text-muted">OBSERVACIONES</label>
+                                    <textarea id="txtObservaciones" class="form-control form-control-sm" rows="1" placeholder="Detalles del pedido..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border-0 shadow-sm mb-3">
+                        <div class="card-header bg-white d-flex justify-content-between align-items-center py-2">
+                            <span class="fw-bold text-primary small">PRODUCTOS</span>
+                            <button type="button" class="btn btn-sm btn-primary" onclick="agregarLineaProducto()">+ Agregar Ítem</button>
+                        </div>
+                        <div class="card-body p-0">
+                            <table class="table table-sm mb-0 align-middle">
+                                <thead class="table-light small text-muted">
+                                    <tr>
+                                        <th style="width: 40%">Producto</th>
+                                        <th style="width: 15%" class="text-center">Cant.</th>
+                                        <th style="width: 20%" class="text-end">Precio</th>
+                                        <th style="width: 20%" class="text-end">Subtotal</th>
+                                        <th style="width: 5%"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bodyTablaVentas"></tbody>
+                            </table>
+                        </div>
+                        <div class="card-footer bg-white text-end">
+                            <h4 class="m-0 fw-bold text-success">Total: S/ <span id="lblTotalVenta">0.00</span></h4>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body">
+                                    <h6 class="fw-bold small text-muted mb-3">PAGO</h6>
+                                    <div class="row g-2">
+                                        <div class="col-6">
+                                            <label class="small">A Cuenta (S/)</label>
+                                            <input type="number" id="txtACuenta" class="form-control fw-bold" value="0" oninput="calcularSaldo()">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="small">Método</label>
+                                            <select id="selMetodoPago" class="form-select"><option value="Efectivo">Efectivo</option></select>
+                                        </div>
+                                        <div class="col-12 pt-2">
+                                            <div class="alert alert-warning py-1 mb-0 small text-center fw-bold">
+                                                Saldo: S/ <span id="lblSaldoPendiente">0.00</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body">
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" id="chkDelivery" onchange="toggleDelivery()">
+                                        <label class="form-check-label fw-bold small" for="chkDelivery">¿Es Delivery?</label>
+                                    </div>
+                                    <div id="divDelivery" class="d-none">
+                                        <input type="text" id="txtDireccion" class="form-control form-control-sm mb-2" placeholder="Dirección">
+                                        <input type="text" id="txtReferencia" class="form-control form-control-sm" placeholder="Referencia">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer border-top-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-success fw-bold px-4" onclick="guardarVenta()">
+                    <i class="bi bi-save"></i> REGISTRAR
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
