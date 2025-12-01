@@ -14,13 +14,16 @@
     </div>
 
     <div class="accordion accordion-flush bg-transparent" id="menuAccordion">
+        <!-- DASHBOARD -->
         <div class="accordion-item bg-transparent border-0">
             <h2 class="accordion-header">
-                <button class="accordion-button bg-transparent text-white shadow-none" type="button" onclick="nav('inicio')">
+                <button class="accordion-button bg-transparent text-white shadow-none" type="button" onclick="nav('ventas-arzuka')">
                     <i class="bi bi-speedometer2 me-2"></i> Dashboard
                 </button>
             </h2>
         </div>
+
+        <!-- COMERCIAL -->
         <div class="accordion-item bg-transparent border-0">
             <h2 class="accordion-header" id="headingVentas">
                 <button class="accordion-button collapsed bg-transparent text-white shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#collapseVentas">
@@ -30,35 +33,34 @@
             <div id="collapseVentas" class="accordion-collapse collapse show" data-bs-parent="#menuAccordion">
                 <div class="accordion-body p-0">
                     <ul class="list-unstyled ps-3">
-                        <li><a href="#" class="text-white-50 text-decoration-none d-block py-2 active" onclick="nav('ventas-arzuka')">
+                        <li><a href="#" class="text-white-50 text-decoration-none d-block py-2" onclick="nav('ventas-arzuka')">
                             <i class="bi bi-shop me-2"></i> Ventas Arzuka
                         </a></li>
                     </ul>
                 </div>
             </div>
         </div>
-		<!-- ... menú de ventas ... -->
-            
-            <!-- NUEVO ITEM: CONFIGURACIÓN -->
-            <div class="accordion-item bg-transparent border-0">
-                <h2 class="accordion-header">
-                    <button class="accordion-button bg-transparent text-white shadow-none" type="button" onclick="cargarVistaConfiguracion()">
-                        <i class="bi bi-gear me-2"></i> Configuración
-                    </button>
-                </h2>
-            </div>
-			<!-- Item Configuración Existente -->
-            
-            <!-- NUEVO ITEM: CRM -->
-            <div class="accordion-item bg-transparent border-0">
-                <h2 class="accordion-header">
-                    <button class="accordion-button bg-transparent text-white shadow-none" type="button" onclick="cargarVistaCRM()">
-                        <i class="bi bi-whatsapp me-2"></i> CRM Mensajes
-                    </button>
-                </h2>
-            </div>
-                            <!-- Botón cerrar sesión -->
-         <div class="accordion-item bg-transparent border-0 mt-3">
+
+        <!-- CONFIGURACIÓN (NUEVO) -->
+        <div class="accordion-item bg-transparent border-0">
+            <h2 class="accordion-header">
+                <button class="accordion-button bg-transparent text-white shadow-none" type="button" onclick="cargarVistaConfiguracion()">
+                    <i class="bi bi-gear me-2"></i> Configuración
+                </button>
+            </h2>
+        </div>
+
+        <!-- CRM (NUEVO) -->
+        <div class="accordion-item bg-transparent border-0">
+            <h2 class="accordion-header">
+                <button class="accordion-button bg-transparent text-white shadow-none" type="button" onclick="cargarVistaCRM()">
+                    <i class="bi bi-whatsapp me-2"></i> CRM Mensajes
+                </button>
+            </h2>
+        </div>
+
+        <!-- CERRAR SESIÓN -->
+        <div class="accordion-item bg-transparent border-0 mt-3">
              <h2 class="accordion-header">
                 <button class="accordion-button collapsed bg-transparent text-danger shadow-none" type="button" onclick="cerrarSesion()">
                     <i class="bi bi-box-arrow-left me-2"></i> Cerrar Sesión
