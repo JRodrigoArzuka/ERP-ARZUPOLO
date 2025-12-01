@@ -5,48 +5,59 @@
 
 let reglasGlobales = [];
 
-// 1. CARGAR LISTA
+// 1. CARGAR LISTA (Se llama al iniciar la vista)
 async function cargarCRM() {
     const tbody = document.getElementById('tblCrmBody');
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>';
+    // Mostrar spinner mientras carga
+    if(tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div><div class="text-muted mt-2">Cargando reglas...</div></td></tr>';
 
     try {
+        // Llamada al Backend
         const res = await callAPI('crm', 'obtenerPlantillasCRM');
+        
         if (res.success) {
             reglasGlobales = res.plantillas;
             renderizarTablaCRM();
         } else {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${res.error}</td></tr>`;
+            if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger fw-bold py-4">Error del servidor: ${res.error}</td></tr>`;
         }
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error de conexión.</td></tr>`;
+        console.error(e);
+        if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Error de conexión. Verifique su internet o que el script esté implementado.</td></tr>`;
     }
 }
 
 function renderizarTablaCRM() {
     const tbody = document.getElementById('tblCrmBody');
+    if(!tbody) return;
+    
     tbody.innerHTML = '';
 
     if (reglasGlobales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No hay reglas configuradas.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 fst-italic">No hay reglas configuradas aún.</td></tr>';
         return;
     }
 
     reglasGlobales.forEach(r => {
         let detalle = '';
-        if (r.tipo_disparador === 'Solo por Estado') detalle = `<span class="badge bg-info text-dark">${r.estado}</span>`;
-        else detalle = `<span class="badge bg-warning text-dark">${r.dias} días</span> ${r.tipo_disparador.includes('después') ? 'depués de' : 'antes de'} ${r.fecha_ref}`;
+        if (r.tipo_disparador === 'Solo por Estado') {
+            detalle = `<span class="badge bg-info text-dark">${r.estado}</span>`;
+        } else {
+            detalle = `<span class="badge bg-warning text-dark">${r.dias} días</span> ${r.tipo_disparador.includes('después') ? 'después de' : 'antes de'} ${r.fecha_ref}`;
+        }
 
-        const estadoIcon = r.activo ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-circle text-secondary"></i>';
+        const estadoIcon = r.activo ? '<i class="bi bi-check-circle-fill text-success" title="Activa"></i>' : '<i class="bi bi-circle text-secondary" title="Inactiva"></i>';
 
         tbody.innerHTML += `
             <tr>
-                <td class="ps-4 fw-bold font-monospace small">${r.id}</td>
+                <td class="ps-4 fw-bold font-monospace small text-primary">${r.id}</td>
                 <td><small>${r.tipo_disparador}</small></td>
                 <td>${detalle}</td>
                 <td>${estadoIcon}</td>
                 <td class="text-end pe-4">
-                    <button class="btn btn-sm btn-light border" onclick="abrirModalCRM('${r.id}')"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-light border" onclick="abrirModalCRM('${r.id}')" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                    </button>
                 </td>
             </tr>
         `;
@@ -60,22 +71,18 @@ function toggleCamposCRM() {
     const divFecha = document.getElementById('divCrmFechaRef');
     const divEstado = document.getElementById('divCrmEstado');
 
-    // Lógica visual según tipo
     if (tipo === 'Solo por Estado') {
         divDias.classList.add('d-none');
         divFecha.classList.add('d-none');
         divEstado.classList.remove('d-none');
     } else if (tipo === 'En Estado por X Días') {
         divDias.classList.remove('d-none');
-        divFecha.classList.remove('d-none'); // Usualmente usa fecha actualización, pero dejaremos ref
+        divFecha.classList.remove('d-none'); 
         divEstado.classList.remove('d-none');
     } else {
         // Días antes/después
         divDias.classList.remove('d-none');
         divFecha.classList.remove('d-none');
-        divEstado.classList.add('d-none'); // Opcional, a veces se filtra estado
-        // Para simplificar según tu foto, a veces el estado sí importa (ej: Entregado)
-        // Vamos a dejar el estado visible siempre para filtrar (ej: 3 días después de entrega SI está Entregado)
         divEstado.classList.remove('d-none'); 
     }
 }
@@ -90,7 +97,7 @@ function abrirModalCRM(id = null) {
         if (!r) return;
 
         document.getElementById('txtCrmId').value = r.id;
-        document.getElementById('txtCrmId').disabled = true; // No cambiar ID
+        document.getElementById('txtCrmId').disabled = true; 
         document.getElementById('selCrmHoja').value = r.hoja_aplicacion;
         document.getElementById('selCrmTipo').value = r.tipo_disparador;
         document.getElementById('selCrmEstado').value = r.estado;
@@ -109,7 +116,7 @@ function abrirModalCRM(id = null) {
         btnEliminar.classList.add('d-none');
     }
 
-    toggleCamposCRM(); // Ajustar visibilidad inicial
+    toggleCamposCRM(); 
     modal.show();
 }
 
@@ -135,7 +142,7 @@ async function guardarRegla() {
         activo: document.getElementById('chkCrmActivo').checked
     };
 
-    if(!confirm("¿Guardar regla?")) return;
+    if(!confirm("¿Confirmar cambios en la regla?")) return;
 
     try {
         const res = await callAPI('crm', 'guardarPlantillaCRM', payload);
@@ -147,7 +154,7 @@ async function guardarRegla() {
             alert("⛔ Error: " + res.error);
         }
     } catch(e) {
-        alert("Error de red");
+        alert("Error de red: " + e.message);
     }
 }
 
@@ -157,11 +164,11 @@ async function eliminarRegla(id) {
     try {
         const res = await callAPI('crm', 'eliminarPlantillaCRM', { id: id });
         if(res.success) {
-            alert("🗑️ Eliminado.");
+            alert("🗑️ Regla eliminada.");
             bootstrap.Modal.getInstance(document.getElementById('modalCRM')).hide();
             cargarCRM();
         } else {
             alert("Error: " + res.error);
         }
-    } catch(e) { alert("Error red"); }
+    } catch(e) { alert("Error red: " + e.message); }
 }
