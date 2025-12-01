@@ -543,3 +543,29 @@ async function guardarVenta() {
         btn.innerHTML = originalText;
     }
 }
+/**
+ * Sincroniza ventas con Loyverse
+ */
+async function sincronizarLoyverse() {
+    const btn = document.querySelector('button[onclick="sincronizarLoyverse()"]');
+    const originalText = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    
+    try {
+        const res = await callAPI('sincronizarLoyverse', 'sincronizarPedidosLoyverse');
+        
+        if (res.success) {
+            alert(res.message);
+            cargarVentasArzuka(); // Recargar la tabla para ver lo nuevo
+        } else {
+            alert("⚠️ " + res.error);
+        }
+    } catch (e) {
+        alert("Error de conexión: " + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}

@@ -1,14 +1,28 @@
 <!-- VISTA: VENTAS ARZUKA -->
 <div id="view-ventas-arzuka" class="view-section active">
+    
+    <!-- ENCABEZADO Y BOTONES DE ACCIÓN -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="m-0 text-primary"><i class="bi bi-shop"></i> Ventas Arzuka</h2>
         <div>
-            <button class="btn btn-outline-secondary me-2" onclick="cargarVentasArzuka()"><i class="bi bi-arrow-clockwise"></i></button>
-            <button class="btn btn-success fw-bold px-4" onclick="abrirModalNuevaVenta()">+ Nueva Venta</button>
+            <!-- Botón 1: Recargar visualmente (sin llamar a Loyverse) -->
+            <button class="btn btn-outline-secondary me-1" onclick="cargarVentasArzuka()" title="Actualizar lista">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+            
+            <!-- Botón 2: Sincronizar con Loyverse (NUEVO) -->
+            <button class="btn btn-primary me-2 fw-bold" onclick="sincronizarLoyverse()" title="Descargar ventas nuevas de Loyverse">
+                <i class="bi bi-cloud-download-fill me-1"></i> Sincronizar
+            </button>
+            
+            <!-- Botón 3: Crear venta manual -->
+            <button class="btn btn-success fw-bold px-4" onclick="abrirModalNuevaVenta()">
+                <i class="bi bi-plus-lg"></i> Nueva Venta
+            </button>
         </div>
     </div>
 
-    <!-- KPIs -->
+    <!-- TARJETAS DE INDICADORES (KPIs) -->
     <div class="row g-3 mb-4">
         <div class="col-md-4">
             <div class="card p-3 border-0 shadow-sm border-start border-4 border-success">
@@ -30,7 +44,7 @@
         </div>
     </div>
 
-    <!-- GRÁFICO -->
+    <!-- GRÁFICO DE TENDENCIA -->
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
             <h6 class="m-0 fw-bold text-muted">Tendencia de Ventas (Últimos Movimientos)</h6>
