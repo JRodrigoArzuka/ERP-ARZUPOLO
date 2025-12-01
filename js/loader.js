@@ -1,7 +1,7 @@
 /**
  * js/loader.js
- * Componente Web Nativo para cargar fragmentos HTML dinámicamente.
- * Permite usar la etiqueta <arzuka-include src="..."></arzuka-include>
+ * Componente Web Nativo para cargar fragmentos HTML.
+ * CORREGIDO: Despacha evento 'loaded' incluso si hay error para no congelar la app.
  */
 
 class ArzukaInclude extends HTMLElement {
@@ -14,28 +14,25 @@ class ArzukaInclude extends HTMLElement {
         if (!file) return;
 
         try {
-            // 1. Petición al archivo HTML
             const response = await fetch(file);
-            if (!response.ok) throw new Error(`No se pudo cargar ${file}`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             
-            // 2. Obtener texto
             const html = await response.text();
-            
-            // 3. Inyectar en el DOM
             this.innerHTML = html;
 
-            // 4. Disparar evento para avisar que ya cargó
+        } catch (e) {
+            console.error(`Error cargando ${file}:`, e);
+            // No mostramos error visual feo en producción, solo en consola
+            // this.innerHTML = `<div class="text-danger text-xs">Error ${file}</div>`;
+        } finally {
+            // IMPORTANTE: Avisar siempre que "terminó" (sea bien o mal)
+            // para que app.js pueda iniciar la verificación de conexión.
             this.dispatchEvent(new CustomEvent('loaded', { 
                 detail: { file: file },
                 bubbles: true 
             }));
-
-        } catch (e) {
-            console.error(e);
-            this.innerHTML = `<div class="alert alert-danger p-2">Error cargando componente: ${file}</div>`;
         }
     }
 }
 
-// Definir la etiqueta personalizada
 customElements.define('arzuka-include', ArzukaInclude);
