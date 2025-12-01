@@ -63,7 +63,7 @@ async function cargarVentasArzuka() {
                             <td class="fw-bold">S/ ${parseFloat(venta.total).toFixed(2)}</td>
                             <td><span class="badge ${badgeColor}">${venta.estado}</span></td>
                             <td>
-                                <button class="btn btn-sm btn-outline-primary" onclick="verDetalleTicket('${venta.ticket}')" title="Ver productos">
+                                <button class="btn btn-sm btn-outline-primary" onclick="abrirGestionTicket('${venta.ticket}')" title="Ver productos">
                                     <i class="bi bi-eye"></i>
                                 </button>
                             </td>
