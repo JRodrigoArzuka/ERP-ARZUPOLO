@@ -1,40 +1,66 @@
 /**
  * js/crm.js
- * Lógica para el Gestor de Reglas CRM y Notificaciones.
+ * Lógica para el Gestor de Reglas CRM.
+ * ACTUALIZADO: Carga dinámica de estados desde Configuración.
  */
 
 let reglasGlobales = [];
+let estadosGlobales = []; // Aquí guardaremos la lista maestra
 
-// 1. CARGAR LISTA (Se llama al iniciar la vista)
+// 1. CARGAR LISTA Y MAESTROS
 async function cargarCRM() {
     const tbody = document.getElementById('tblCrmBody');
-    // Mostrar spinner mientras carga
-    if(tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div><div class="text-muted mt-2">Cargando reglas...</div></td></tr>';
+    if(tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>';
 
     try {
-        // Llamada al Backend
         const res = await callAPI('crm', 'obtenerPlantillasCRM');
         
         if (res.success) {
             reglasGlobales = res.plantillas;
+            estadosGlobales = res.listaEstados || []; // Guardar estados
+            
+            // Llenar el Select de Estados en el Modal
+            llenarSelectEstadosCRM();
+            
             renderizarTablaCRM();
         } else {
-            if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger fw-bold py-4">Error del servidor: ${res.error}</td></tr>`;
+            if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${res.error}</td></tr>`;
         }
     } catch (e) {
         console.error(e);
-        if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">Error de conexión. Verifique su internet o que el script esté implementado.</td></tr>`;
     }
+}
+
+// Función para poblar el select
+function llenarSelectEstadosCRM() {
+    const sel = document.getElementById('selCrmEstado');
+    if(!sel) return;
+    
+    // Guardar valor actual si se estaba editando (por si acaso)
+    const valorPrevio = sel.value;
+    
+    sel.innerHTML = '<option value="">Cualquiera</option>'; // Opción por defecto
+    
+    if (estadosGlobales.length > 0) {
+        estadosGlobales.forEach(estado => {
+            sel.innerHTML += `<option value="${estado}">${estado}</option>`;
+        });
+    } else {
+        // Fallback por si falla la carga
+        sel.innerHTML += '<option>Nuevo Pedido</option><option>Pendiente</option><option>Pagado</option><option>En Produccion</option><option>Listo para Entrega</option><option>Entregado</option><option>Anulado</option>';
+    }
+    
+    // Restaurar valor si existe
+    if(valorPrevio) sel.value = valorPrevio;
 }
 
 function renderizarTablaCRM() {
     const tbody = document.getElementById('tblCrmBody');
     if(!tbody) return;
-    
     tbody.innerHTML = '';
 
     if (reglasGlobales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4 fst-italic">No hay reglas configuradas aún.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No hay reglas configuradas.</td></tr>';
         return;
     }
 
@@ -46,18 +72,16 @@ function renderizarTablaCRM() {
             detalle = `<span class="badge bg-warning text-dark">${r.dias} días</span> ${r.tipo_disparador.includes('después') ? 'después de' : 'antes de'} ${r.fecha_ref}`;
         }
 
-        const estadoIcon = r.activo ? '<i class="bi bi-check-circle-fill text-success" title="Activa"></i>' : '<i class="bi bi-circle text-secondary" title="Inactiva"></i>';
+        const estadoIcon = r.activo ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-circle text-secondary"></i>';
 
         tbody.innerHTML += `
             <tr>
-                <td class="ps-4 fw-bold font-monospace small text-primary">${r.id}</td>
+                <td class="ps-4 fw-bold font-monospace small">${r.id}</td>
                 <td><small>${r.tipo_disparador}</small></td>
                 <td>${detalle}</td>
                 <td>${estadoIcon}</td>
                 <td class="text-end pe-4">
-                    <button class="btn btn-sm btn-light border" onclick="abrirModalCRM('${r.id}')" title="Editar">
-                        <i class="bi bi-pencil"></i>
-                    </button>
+                    <button class="btn btn-sm btn-light border" onclick="abrirModalCRM('${r.id}')"><i class="bi bi-pencil"></i></button>
                 </td>
             </tr>
         `;
@@ -77,10 +101,9 @@ function toggleCamposCRM() {
         divEstado.classList.remove('d-none');
     } else if (tipo === 'En Estado por X Días') {
         divDias.classList.remove('d-none');
-        divFecha.classList.remove('d-none'); 
+        divFecha.classList.remove('d-none');
         divEstado.classList.remove('d-none');
     } else {
-        // Días antes/después
         divDias.classList.remove('d-none');
         divFecha.classList.remove('d-none');
         divEstado.classList.remove('d-none'); 
@@ -91,16 +114,21 @@ function abrirModalCRM(id = null) {
     const modal = new bootstrap.Modal(document.getElementById('modalCRM'));
     const btnEliminar = document.getElementById('btnEliminarCRM');
     
+    // Asegurar que el select tenga las opciones actualizadas
+    llenarSelectEstadosCRM();
+
     if (id) {
-        // MODO EDICIÓN
         const r = reglasGlobales.find(x => x.id === id);
         if (!r) return;
 
         document.getElementById('txtCrmId').value = r.id;
-        document.getElementById('txtCrmId').disabled = true; 
+        document.getElementById('txtCrmId').disabled = true;
         document.getElementById('selCrmHoja').value = r.hoja_aplicacion;
         document.getElementById('selCrmTipo').value = r.tipo_disparador;
+        
+        // Asignar estado (ahora debería coincidir con la lista dinámica)
         document.getElementById('selCrmEstado').value = r.estado;
+        
         document.getElementById('numCrmDias').value = r.dias;
         document.getElementById('selCrmFechaRef').value = r.fecha_ref;
         document.getElementById('txtCrmMensaje').value = r.mensaje;
@@ -110,13 +138,12 @@ function abrirModalCRM(id = null) {
         btnEliminar.classList.remove('d-none');
         btnEliminar.setAttribute('onclick', `eliminarRegla('${id}')`);
     } else {
-        // MODO NUEVO
         document.getElementById('formCRM').reset();
         document.getElementById('txtCrmId').disabled = false;
         btnEliminar.classList.add('d-none');
     }
 
-    toggleCamposCRM(); 
+    toggleCamposCRM();
     modal.show();
 }
 
@@ -142,7 +169,7 @@ async function guardarRegla() {
         activo: document.getElementById('chkCrmActivo').checked
     };
 
-    if(!confirm("¿Confirmar cambios en la regla?")) return;
+    if(!confirm("¿Guardar regla?")) return;
 
     try {
         const res = await callAPI('crm', 'guardarPlantillaCRM', payload);
@@ -153,22 +180,19 @@ async function guardarRegla() {
         } else {
             alert("⛔ Error: " + res.error);
         }
-    } catch(e) {
-        alert("Error de red: " + e.message);
-    }
+    } catch(e) { alert("Error de red"); }
 }
 
 async function eliminarRegla(id) {
-    if(!confirm("¿Seguro que deseas ELIMINAR esta regla permanentemente?")) return;
-    
+    if(!confirm("¿Eliminar regla?")) return;
     try {
         const res = await callAPI('crm', 'eliminarPlantillaCRM', { id: id });
         if(res.success) {
-            alert("🗑️ Regla eliminada.");
+            alert("🗑️ Eliminado.");
             bootstrap.Modal.getInstance(document.getElementById('modalCRM')).hide();
             cargarCRM();
         } else {
             alert("Error: " + res.error);
         }
-    } catch(e) { alert("Error red: " + e.message); }
+    } catch(e) { alert("Error red"); }
 }
