@@ -119,3 +119,18 @@ async function cargarVistaConfiguracion() {
         cargarConfiguracion();
     }
 }
+async function cargarVistaCRM() {
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    let contenedor = document.getElementById('view-crm');
+    
+    if (!contenedor) {
+        const mainArea = document.getElementById('main-area');
+        const include = document.createElement('arzuka-include');
+        include.setAttribute('src', 'components/vista-crm.html');
+        include.addEventListener('loaded', () => cargarCRM());
+        mainArea.appendChild(include);
+    } else {
+        contenedor.classList.add('active');
+        cargarCRM();
+    }
+}

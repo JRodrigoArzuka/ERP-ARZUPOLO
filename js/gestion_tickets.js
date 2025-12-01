@@ -162,16 +162,37 @@ function previewVoucherName() {
 }
 
 async function registrarPago() {
-    // 1. Validaciones
-    const monto = document.getElementById('txtPagoMonto').value;
-    if(!monto || parseFloat(monto) <= 0) {
+    // 1. Validaciones y Lectura de Deuda
+    const inputMonto = document.getElementById('txtPagoMonto');
+    const monto = parseFloat(inputMonto.value);
+    
+    // Leer deuda actual del texto visual (quitando "S/ ") para comparar
+    const lblDeuda = document.getElementById('lblPagoDeuda');
+    const textoDeuda = lblDeuda ? lblDeuda.innerText.replace('S/ ', '').trim() : '0';
+    const deudaActual = parseFloat(textoDeuda) || 0;
+
+    if(!monto || monto <= 0) {
         alert("⚠️ Por favor ingresa un monto válido.");
         return;
     }
 
-    if(!confirm(`¿Confirmar pago de S/ ${monto}?`)) return;
+    // --- NUEVA VALIDACIÓN DE SOBREPAGO ---
+    let mensajeConfirm = `¿Confirmar pago de S/ ${monto.toFixed(2)}?`;
+    
+    // Si paga más de lo que debe (margen de error de 0.01 por decimales)
+    if (monto > (deudaActual + 0.01)) {
+        const excedente = (monto - deudaActual).toFixed(2);
+        mensajeConfirm = `⚠️ ALERTA DE SOBREPAGO\n\nEl monto (S/ ${monto.toFixed(2)}) supera la deuda actual (S/ ${deudaActual.toFixed(2)}).\n\nSe generará un SALDO A FAVOR de S/ ${excedente} para el cliente.\n\n¿Deseas continuar?`;
+    }
+    // -------------------------------------
 
+    if(!confirm(mensajeConfirm)) return;
+
+    // UI: Bloquear botón para evitar doble clic
     const btn = document.querySelector('#tab-pagos button.btn-success');
+    // Guardamos el texto original o el icono por defecto
+    const originalContent = '<i class="bi bi-check-circle-fill me-2"></i> CONFIRMAR PAGO';
+    
     btn.disabled = true; 
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
 
@@ -182,7 +203,7 @@ async function registrarPago() {
     let base64 = null;
     let mimeType = null;
 
-    // Función auxiliar para leer archivo como promesa
+    // Función auxiliar interna para leer archivo
     const readFile = (file) => new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve(e.target.result);
@@ -211,9 +232,11 @@ async function registrarPago() {
         
         if (res.success) {
             alert("✅ " + res.message);
-            // Recargar datos para ver saldo actualizado en 0
+            
+            // A. Recargar datos del modal para ver saldo actualizado en 0 (o negativo/a favor)
             abrirGestionTicket(currentTicketID);
-            // Actualizar tabla principal si está visible
+            
+            // B. Actualizar tabla principal de ventas si está visible en el fondo
             if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
         } else {
             alert("⛔ Error: " + res.error);
@@ -221,8 +244,9 @@ async function registrarPago() {
     } catch (e) {
         alert("Error de conexión: " + e.message);
     } finally {
+        // Restaurar botón
         btn.disabled = false; 
-        btn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> CONFIRMAR PAGO';
+        btn.innerHTML = originalContent;
     }
 }
 
