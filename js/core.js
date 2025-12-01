@@ -94,3 +94,28 @@ function limpiarCache() {
         timestamp: null
     };
 }
+async function cargarVistaConfiguracion() {
+    // 1. Ocultar otras vistas
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    
+    // 2. Verificar si ya existe el contenedor de configuración
+    let contenedor = document.getElementById('view-configuracion');
+    
+    if (!contenedor) {
+        // Si no existe, crearlo dinámicamente usando el loader
+        const mainArea = document.getElementById('main-area');
+        const include = document.createElement('arzuka-include');
+        include.setAttribute('src', 'components/vista-configuracion.html');
+        
+        // Escuchar cuando termine de cargar para inicializar los datos
+        include.addEventListener('loaded', () => {
+            cargarConfiguracion(); // Función de js/configuracion.js
+        });
+        
+        mainArea.appendChild(include);
+    } else {
+        // Si ya existe, solo mostrarlo y recargar datos
+        contenedor.classList.add('active');
+        cargarConfiguracion();
+    }
+}
