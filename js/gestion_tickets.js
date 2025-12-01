@@ -113,25 +113,28 @@ async function abrirGestionTicket(idTicket) {
             document.getElementById('txtGestionObs').value = cab.observaciones;
 
             // C. Fechas y Validación (Min = Hoy)
+            // Esto bloquea fechas pasadas en el calendario
             const hoy = new Date().toISOString().split('T')[0];
             
             const dateEvento = document.getElementById('dateGestionEvento');
             dateEvento.value = cab.fecha_evento;
-            dateEvento.min = hoy; // Bloquear pasado
+            dateEvento.min = hoy; 
 
             const dateEntrega = document.getElementById('dateGestionEntrega');
             dateEntrega.value = cab.fecha_entrega;
-            dateEntrega.min = hoy; // Bloquear pasado
+            dateEntrega.min = hoy; 
 
             // 6. Pestaña Contrato
             const divLink = document.getElementById('divContratoLink');
             const divAction = document.getElementById('divContratoActions');
             
             if (cab.url_contrato && cab.url_contrato.startsWith('http')) {
+                // YA EXISTE: Mostrar Descargar y Regenerar
                 divLink.classList.remove('d-none');
                 document.getElementById('linkContratoFinal').href = cab.url_contrato;
                 divAction.classList.add('d-none');
             } else {
+                // NO EXISTE: Mostrar Generar
                 divLink.classList.add('d-none');
                 divAction.classList.remove('d-none');
             }
@@ -196,17 +199,25 @@ function toggleGestionDelivery() {
  * Copia nombre y celular del cliente a los campos de delivery
  */
 function copiarDatosClienteDelivery() {
+    let copiado = false;
     if (currentClientData.nombre) {
         document.getElementById('txtGestionPersona').value = currentClientData.nombre;
+        copiado = true;
     }
     if (currentClientData.celular) {
         document.getElementById('txtGestionContacto').value = currentClientData.celular;
+        copiado = true;
     }
-    // Feedback visual pequeño
-    const btn = document.querySelector('#panelGestionDelivery button.btn-outline-info');
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check"></i> Copiado';
-    setTimeout(() => btn.innerHTML = original, 1000);
+    
+    if(copiado) {
+        // Feedback visual
+        const btn = document.querySelector('#panelGestionDelivery button.btn-outline-info');
+        const original = btn.innerHTML;
+        btn.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i> Copiado';
+        setTimeout(() => btn.innerHTML = original, 1500);
+    } else {
+        alert("No hay datos del cliente para copiar.");
+    }
 }
 
 function renderizarGaleria(fotos) {
@@ -380,21 +391,29 @@ async function guardarEdicion() {
 }
 
 /**
- * Generar Contrato PDF
+ * Generar Contrato PDF (Funciona también para Regenerar)
  */
 async function generarContrato() {
-    const btn = document.querySelector('#divContratoActions button');
-    btn.disabled = true; 
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Generando PDF...';
+    // Buscar cualquier botón activo en la sección de contrato (sea el de generar o regenerar)
+    const btns = document.querySelectorAll('#divContratoActions button, #divContratoLink button');
+    
+    // UI Bloqueo
+    btns.forEach(b => {
+        b.dataset.originalText = b.innerHTML;
+        b.disabled = true;
+        b.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+    });
 
     try {
         const res = await callAPI('ventas', 'generarContrato', { id_ticket: currentTicketID });
         
         if (res.success) {
-            // Ocultar botón generar y mostrar descargar
+            // Ocultar botón generar inicial y mostrar el panel de descarga
             document.getElementById('divContratoActions').classList.add('d-none');
             const divLink = document.getElementById('divContratoLink');
             divLink.classList.remove('d-none');
+            
+            // Actualizar enlace de descarga
             document.getElementById('linkContratoFinal').href = res.url;
             
             alert(res.mensaje);
@@ -404,7 +423,10 @@ async function generarContrato() {
     } catch (e) {
         alert("Error de conexión: " + e.message);
     } finally {
-        btn.disabled = false; 
-        btn.innerText = "Generar PDF";
+        // Restaurar botones
+        btns.forEach(b => {
+            b.disabled = false;
+            if(b.dataset.originalText) b.innerHTML = b.dataset.originalText;
+        });
     }
 }
