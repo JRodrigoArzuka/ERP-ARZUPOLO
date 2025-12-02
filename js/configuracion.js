@@ -158,3 +158,43 @@ async function guardarUsuario() {
         cargarConfiguracion();
     } else alert(res.error);
 }
+// =============================================================================
+// 5. PRUEBAS DE CONEXIÓN
+// =============================================================================
+
+async function enviarPruebaWsp() {
+    const numero = document.getElementById('txtTestWspNumero').value;
+    const mensaje = document.getElementById('txtTestWspMensaje').value;
+
+    if (!numero) {
+        alert("Por favor ingresa un número de celular.");
+        return;
+    }
+
+    const btn = document.querySelector('button[onclick="enviarPruebaWsp()"]');
+    const originalText = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    const payload = {
+        numero: numero,
+        mensaje: mensaje
+    };
+
+    try {
+        // Asegúrate de que 'probandoConexionWhatsApp' esté en tu API_Handler
+        const res = await callAPI('configuracion', 'probandoConexionWhatsApp', payload);
+        
+        if (res.success) {
+            alert("✅ " + res.message);
+        } else {
+            alert("❌ Falló: " + res.error);
+        }
+    } catch (e) {
+        alert("Error de red: " + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
