@@ -1,14 +1,22 @@
 /**
  * js/clientes.js
  * Lógica del Módulo de Clientes.
+ * CORREGIDO: Nombre de función único para evitar conflictos con core.js
  */
 
 let listaClientesGlobal = [];
 
-// 1. CARGAR CLIENTES
-async function cargarVistaClientes() {
-    // Esta función se llama desde sidebar o core
+// 1. CARGAR CLIENTES (Nombre cambiado para evitar conflicto)
+async function inicializarModuloClientes() {
+    
     const tbody = document.getElementById('tblClientesBody');
+    
+    // Validación de seguridad: Si el HTML no cargó aún, no hacer nada
+    if (!tbody) {
+        console.warn("El contenedor tblClientesBody no existe aún.");
+        return;
+    }
+
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Cargando directorio...</td></tr>';
 
     try {
@@ -26,6 +34,8 @@ async function cargarVistaClientes() {
 
 function renderizarTablaClientes(lista) {
     const tbody = document.getElementById('tblClientesBody');
+    if (!tbody) return;
+    
     tbody.innerHTML = '';
 
     if (lista.length === 0) {
@@ -105,7 +115,7 @@ async function guardarClienteForm() {
         if (res.success) {
             alert("✅ Guardado.");
             bootstrap.Modal.getInstance(document.getElementById('modalCliente')).hide();
-            cargarVistaClientes();
+            inicializarModuloClientes(); // Recargar lista
         } else {
             alert("Error: " + res.error);
         }

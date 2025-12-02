@@ -161,8 +161,14 @@ function toggleSidebar(forceState = null) {
     if (forceState === false) sidebar.classList.remove('active');
     else sidebar.classList.toggle('active');
 }
+// ... (resto del archivo core.js igual) ...
+
+// Navegación Dinámica: CLIENTES (CORREGIDO)
 function cargarVistaClientes() {
     cargarComponenteDinamico('view-clientes', 'components/vista-clientes.html', () => {
-        cargarVistaClientes(); // Llama a la función de js/clientes.js
+        // Llamamos a la función con el NUEVO nombre para evitar conflictos
+        if(typeof inicializarModuloClientes === 'function') inicializarModuloClientes();
     });
 }
+
+// ... (resto de funciones como cargarComponenteDinamico, etc.) ...
