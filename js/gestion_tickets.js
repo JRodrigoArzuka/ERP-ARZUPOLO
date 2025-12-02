@@ -439,3 +439,59 @@ async function generarContrato() {
         btns.forEach(b => { b.disabled = false; if(b.dataset.originalText) b.innerHTML = b.dataset.originalText; });
     }
 }
+// En js/gestion_tickets.js
+
+// ... (al final)
+
+async function cambiarClienteTicket() {
+    const nuevoNombre = prompt("Ingresa el NOMBRE EXACTO del nuevo cliente (debe existir en el Directorio):");
+    if (!nuevoNombre) return;
+
+    // Buscar ID en la caché de clientes (si está cargada) o necesitamos un buscador mejor.
+    // Para simplificar, buscaremos por nombre en la lista global de clientes si ya se cargó, 
+    // o haremos una llamada rápida.
+    
+    // TRUCO: Usaremos la lista del datalist #listaClientes que ya se carga en Nueva Venta
+    // Si no está cargada, alertamos.
+    
+    const datalist = document.getElementById('listaClientes');
+    let nuevoId = null;
+    
+    // Intentar encontrar el ID en las opciones del datalist
+    for (let i = 0; i < datalist.options.length; i++) {
+        if (datalist.options[i].value === nuevoNombre) {
+            nuevoId = datalist.options[i].getAttribute('data-id');
+            break;
+        }
+    }
+
+    if (!nuevoId) {
+        // Si no está en datalist, intentamos buscar en la base de datos via API (más seguro)
+        // O pedimos al usuario que vaya a "Nueva Venta" para refrescar la lista :P 
+        // Vamos a hacer una búsqueda rápida mejor:
+        
+        const confirmacion = confirm(`No encontré el ID de "${nuevoNombre}" en memoria rápida.\n\n¿Deseas buscar en la base de datos completa?`);
+        if(!confirmacion) return;
+        
+        // TODO: Implementar endpoint de búsqueda por nombre.
+        // Por ahora, exigimos que el cliente exista.
+        alert("Por favor, asegúrate de haber cargado la lista de clientes o que el nombre sea exacto.");
+        return;
+    }
+
+    if(!confirm(`¿Reasignar el ticket ${currentTicketID} a ${nuevoNombre}?`)) return;
+
+    try {
+        const res = await callAPI('gestion', 'reasignarClienteTicket', { 
+            id_ticket: currentTicketID,
+            id_cliente: nuevoId
+        });
+        
+        if(res.success) {
+            alert("✅ Cliente actualizado.");
+            abrirGestionTicket(currentTicketID); // Recargar
+        } else {
+            alert("Error: " + res.error);
+        }
+    } catch(e) { alert("Error red"); }
+}

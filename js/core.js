@@ -161,3 +161,8 @@ function toggleSidebar(forceState = null) {
     if (forceState === false) sidebar.classList.remove('active');
     else sidebar.classList.toggle('active');
 }
+function cargarVistaClientes() {
+    cargarComponenteDinamico('view-clientes', 'components/vista-clientes.html', () => {
+        cargarVistaClientes(); // Llama a la función de js/clientes.js
+    });
+}
