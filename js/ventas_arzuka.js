@@ -1,76 +1,70 @@
 /**
  * js/ventas_arzuka.js
- * Lógica del Dashboard Comercial: Filtros, Gráficos Dinámicos y Caché.
+ * Actualizado para SWR (Caché + Actualización en vivo).
  */
 
-let chartInstancia = null; // Variable global para el gráfico
+let chartInstancia = null;
 let filtrosCargados = false;
 
-// =============================================================================
-// 1. INICIALIZACIÓN Y FILTROS
-// =============================================================================
-
-// Se llama automáticamente cuando el usuario entra a la vista (desde nav())
 async function cargarVentasArzuka() {
-    // 1. Configurar fechas por defecto (Hoy) si están vacías
     if (!document.getElementById('filtroFechaDesde').value) {
         const hoy = new Date().toISOString().split('T')[0];
         document.getElementById('filtroFechaDesde').value = hoy;
         document.getElementById('filtroFechaHasta').value = hoy;
     }
 
-    // 2. Cargar lista de vendedores solo la primera vez
-    if (!filtrosCargados) {
-        await cargarFiltroVendedores();
-        filtrosCargados = true;
-    }
+    if (!filtrosCargados) { await cargarFiltroVendedores(); filtrosCargados = true; }
 
-    // 3. Obtener valores de filtro
     const payload = {
         fechaDesde: document.getElementById('filtroFechaDesde').value,
         fechaHasta: document.getElementById('filtroFechaHasta').value,
         vendedor: document.getElementById('filtroVendedor').value
     };
 
-    // UI: Mostrar carga
     const tbody = document.getElementById('tablaVentasBody');
-    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Analizando datos...</td></tr>';
+    // Solo mostramos spinner si NO hay datos previos en pantalla para evitar parpadeo
+    if(tbody.children.length <= 1) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Cargando...</td></tr>';
+    }
 
     try {
-        // 4. LLAMADA AL API (CON CACHÉ)
-        // ttl: 5 minutos para reportes. Si el usuario activó el caché en Configuración, esto volará.
-        const res = await callAPI('ventas', 'obtenerVentasFiltradas', payload, { useCache: true, ttl: 5 });
+        // LLAMADA CON CALLBACK DE ACTUALIZACIÓN
+        const res = await callAPI(
+            'ventas', 
+            'obtenerVentasFiltradas', 
+            payload, 
+            // Callback: Se ejecuta SI el servidor trae datos diferentes al caché
+            (datosFrescos) => {
+                console.log("✨ Actualizando vista con datos frescos...");
+                if(datosFrescos.success) actualizarDashboard(datosFrescos.ventas, datosFrescos.resumen);
+            }
+        );
 
-        if (res.success) {
+        if (res && res.success) {
             actualizarDashboard(res.ventas, res.resumen);
-        } else {
+        } else if (res && !res.success) {
             tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Error: ${res.error}</td></tr>`;
         }
 
-    } catch (e) {
-        console.error(e);
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error de conexión.</td></tr>';
-    }
+    } catch (e) { console.error(e); }
 }
 
 async function cargarFiltroVendedores() {
     try {
-        // Usamos caché alto (60 min) para la lista de vendedores, casi no cambia
-        const res = await callAPI('ventas', 'obtenerMaestrosVentas', {}, { useCache: true, ttl: 60 });
+        const res = await callAPI('ventas', 'obtenerMaestrosVentas');
         if (res.success && res.vendedores) {
             const sel = document.getElementById('filtroVendedor');
-            // Mantener la opción "Todos" y agregar el resto
+            // Guardar selección actual
+            const val = sel.value;
             sel.innerHTML = '<option value="Todos">Todos los vendedores</option>';
             res.vendedores.forEach(v => {
-                // Guardamos el nombre o ID según como lo manejes en la BD. 
-                // En Ventas_Code.gs comparamos strings, así que usamos el nombre.
                 sel.innerHTML += `<option value="${v.nombre}">${v.nombre}</option>`;
             });
+            sel.value = val; // Restaurar
+            
+            if(res.clientes) window.clientesCache = res.clientes;
         }
-        // También aprovechamos para llenar el cache de clientes para el formulario de nueva venta
-        if(res.clientes) window.clientesCache = res.clientes;
-        if(res.config) window.configCache = res.config; // Guardar config globalmente
-    } catch (e) { console.error("Error cargando vendedores", e); }
+    } catch (e) { console.error(e); }
 }
 
 // =============================================================================
@@ -78,6 +72,42 @@ async function cargarFiltroVendedores() {
 // =============================================================================
 
 function actualizarDashboard(ventas, resumen) {
+    document.getElementById('kpiTotalPeriodo').innerText = `S/ ${parseFloat(resumen.total).toFixed(2)}`;
+    document.getElementById('kpiCantidadTickets').innerText = resumen.cantidad;
+    const promedio = resumen.cantidad > 0 ? (resumen.total / resumen.cantidad) : 0;
+    document.getElementById('kpiTicketPromedio').innerText = `S/ ${promedio.toFixed(2)}`;
+
+    const tbody = document.getElementById('tablaVentasBody');
+    document.getElementById('lblCountTabla').innerText = `${ventas.length} registros`;
+    tbody.innerHTML = '';
+
+    if (ventas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">No se encontraron ventas.</td></tr>';
+        renderizarGrafico([]);
+        return;
+    }
+
+    const ventasOrdenadas = [...ventas].sort((a, b) => new Date(b.fecha + 'T' + b.hora) - new Date(a.fecha + 'T' + a.hora));
+
+    ventasOrdenadas.forEach(v => {
+        const fila = `
+            <tr>
+                <td class="fw-bold text-primary font-monospace">${v.ticket}</td>
+                <td>${v.fecha} <small class="text-muted">${v.hora}</small></td>
+                <td>${v.cliente || 'General'}</td>
+                <td class="text-end fw-bold">S/ ${parseFloat(v.total).toFixed(2)}</td>
+                <td><span class="badge bg-light text-dark border">${v.vendedor || 'N/A'}</span></td>
+                <td class="text-center">
+                    <button class="btn btn-sm btn-outline-secondary border-0" onclick="abrirGestionTicket('${v.ticket}')">
+                        <i class="bi bi-gear-fill"></i>
+                    </button>
+                </td>
+            </tr>`;
+        tbody.insertAdjacentHTML('beforeend', fila);
+    });
+    renderizarGrafico(ventas);
+}
+
     // A. KPIs
     document.getElementById('kpiTotalPeriodo').innerText = `S/ ${parseFloat(resumen.total).toFixed(2)}`;
     document.getElementById('kpiCantidadTickets').innerText = resumen.cantidad;

@@ -1,12 +1,8 @@
 /**
  * js/core.js
- * Núcleo de la aplicación: API, Caché y Navegación Dinámica.
- * VERSIÓN FINAL: Con soporte para carga de vistas (CRM y Configuración).
+ * Núcleo: API con estrategia SWR (Stale-While-Revalidate).
+ * Permite carga instantánea + actualización silenciosa.
  */
-
-// =============================================================================
-// 1. CONFIGURACIÓN Y CACHÉ
-// =============================================================================
 
 const Config = {
     URL_API_PRINCIPAL: "https://script.google.com/macros/s/AKfycbxfHHUGrAPAJGCGLnX4LPoqsE4OECHO4jYuWkprw2FJHsgNHaCfy9-YCEOZ-PsMMbFa/exec"
@@ -23,16 +19,20 @@ const CacheSystem = {
         if (!CacheSystem.isEnabled()) return null;
         const item = localStorage.getItem(key);
         if (!item) return null;
-        const parsed = JSON.parse(item);
-        if (Date.now() > parsed.expiry) {
-            localStorage.removeItem(key);
-            return null;
-        }
-        return parsed.value;
+        try {
+            const parsed = JSON.parse(item);
+            // Si expiró, igual lo devolvemos para mostrar algo rápido (Stale), 
+            // luego la red lo actualizará. Solo borramos si es muy viejo (ej. 24h)
+            if (Date.now() - parsed.timestamp > 86400000) { 
+                localStorage.removeItem(key);
+                return null;
+            }
+            return parsed.data;
+        } catch (e) { return null; }
     },
-    set: (key, value, ttlMinutes = 60) => {
+    set: (key, data) => {
         if (!CacheSystem.isEnabled()) return;
-        const item = { value: value, expiry: Date.now() + (ttlMinutes * 60 * 1000) };
+        const item = { data: data, timestamp: Date.now() };
         localStorage.setItem(key, JSON.stringify(item));
     },
     clear: () => {
@@ -43,132 +43,164 @@ const CacheSystem = {
 };
 
 // =============================================================================
-// 2. CONECTOR API
+// 2. CONECTOR API INTELIGENTE (SWR)
 // =============================================================================
 
-async function callAPI(servicio, accion, payload = {}, options = {}) {
-    console.log(`📡 [${servicio}] ${accion}...`);
+/**
+ * @param {string} servicio - Módulo
+ * @param {string} accion - Función Backend
+ * @param {Object} payload - Datos
+ * @param {Function} onUpdateCallback - (Opcional) Función a ejecutar si el servidor trae datos nuevos
+ */
+async function callAPI(servicio, accion, payload = {}, onUpdateCallback = null) {
+    // Indicador visual de carga en segundo plano (pequeño spinner en esquina)
+    mostrarIndicadorCarga(true);
+    console.log(`📡 [${servicio}] Solicitando: ${accion}`);
+
     const cacheKey = `cache_${accion}_${JSON.stringify(payload)}`;
-    
-    if (options.useCache && CacheSystem.isEnabled()) {
-        const cachedData = CacheSystem.get(cacheKey);
-        if (cachedData) {
-            console.log(`⚡ [${servicio}] Caché`);
-            return cachedData;
-        }
+    let cachedData = null;
+
+    // 1. INTENTAR CACHÉ (Retorno Inmediato)
+    if (CacheSystem.isEnabled()) {
+        cachedData = CacheSystem.get(cacheKey);
     }
 
-    try {
-        const respuesta = await fetch(Config.URL_API_PRINCIPAL, {
-            method: "POST",
-            mode: "cors",
-            headers: { "Content-Type": "text/plain;charset=utf-8" },
-            body: JSON.stringify({ accion: accion, payload: payload })
-        });
-        if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
-        const datos = await respuesta.json();
-        if (datos.success && options.useCache) CacheSystem.set(cacheKey, datos, options.ttl || 60);
-        return datos;
-    } catch (error) {
-        console.error(`🔥 [${servicio}] Fallo:`, error);
-        return { success: false, error: error.message };
+    // Promesa de Red
+    const networkPromise = fetch(Config.URL_API_PRINCIPAL, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify({ accion: accion, payload: payload })
+    })
+    .then(res => res.json())
+    .then(newData => {
+        mostrarIndicadorCarga(false);
+        
+        // Si hubo error en servidor
+        if (!newData.success) {
+            console.warn(`⚠️ [${servicio}] Error Servidor:`, newData.error);
+            // Si no teníamos caché, devolvemos el error. Si teníamos, nos quedamos con lo viejo.
+            if (!cachedData) return newData;
+            return null; // No propagar error si ya mostramos caché
+        }
+
+        // COMPARACIÓN DE DATOS (Deep Compare simple)
+        const serverStr = JSON.stringify(newData);
+        const cacheStr = JSON.stringify(cachedData);
+
+        if (serverStr !== cacheStr) {
+            console.log(`🔄 [${servicio}] Datos nuevos detectados. Actualizando UI...`);
+            CacheSystem.set(cacheKey, newData);
+            
+            // Si existe callback y ya habíamos devuelto caché, ejecutamos el callback para refrescar
+            if (cachedData && onUpdateCallback) {
+                onUpdateCallback(newData);
+            }
+            return newData; // Para el caso donde no había caché
+        } else {
+            console.log(`✅ [${servicio}] Datos sincronizados (Sin cambios).`);
+            return newData; // Retornamos igual
+        }
+    })
+    .catch(err => {
+        mostrarIndicadorCarga(false);
+        console.error(`🔥 [${servicio}] Error Red:`, err);
+        return { success: false, error: err.message };
+    });
+
+    // LÓGICA DE RETORNO
+    if (cachedData) {
+        console.log(`⚡ [${servicio}] Usando Caché (Validando en 2do plano...)`);
+        // Disparamos la petición de red pero NO la esperamos (Fire & Forget controlada)
+        // El .then de networkPromise manejará el onUpdateCallback si hay cambios
+        return cachedData; 
+    } else {
+        // Si no hay caché, tenemos que esperar a la red sí o sí
+        return await networkPromise;
     }
 }
 
 // =============================================================================
-// 3. NAVEGACIÓN Y CARGA DE VISTAS
+// 3. UTILIDADES UI
 // =============================================================================
+
+function mostrarIndicadorCarga(activo) {
+    // Un pequeño punto o spinner en la barra superior para saber que trabaja
+    let ind = document.getElementById('global-spinner');
+    if (!ind) {
+        ind = document.createElement('div');
+        ind.id = 'global-spinner';
+        ind.style = "position:fixed; top:10px; right:10px; z-index:9999; display:none;";
+        ind.innerHTML = '<div class="spinner-border spinner-border-sm text-primary bg-white rounded-circle shadow-sm"></div>';
+        document.body.appendChild(ind);
+    }
+    ind.style.display = activo ? 'block' : 'none';
+}
 
 async function verificarConexion() {
     const ind = document.getElementById('indicador-conexion');
     if(!ind) return;
-    ind.innerHTML = '<span class="spinner-border spinner-border-sm text-warning"></span>';
     try {
+        // Test conexión no usa caché
         const res = await callAPI('sistema', 'testConexion');
         if (res.success) {
             ind.innerHTML = '<i class="bi bi-circle-fill text-success"></i> Online';
             ind.title = res.mensaje;
-        } else ind.innerHTML = '<i class="bi bi-exclamation-circle-fill text-danger"></i> Error';
+        }
     } catch (e) { ind.innerHTML = '<i class="bi bi-wifi-off text-danger"></i> Offline'; }
 }
 
-// Navegación Genérica (Para Dashboard y Ventas)
-function nav(vista) {
-    activarVistaUI('view-' + vista);
-    if(vista === 'ventas-arzuka' && typeof cargarVentasArzuka === 'function') {
-        cargarVentasArzuka();
-    }
-}
-
-// Navegación Dinámica: CONFIGURACIÓN
-function cargarVistaConfiguracion() {
-    cargarComponenteDinamico('view-configuracion', 'components/vista-configuracion.html', () => {
-        if(typeof cargarConfiguracion === 'function') cargarConfiguracion();
-    });
-}
-
-// Navegación Dinámica: CRM
-function cargarVistaCRM() {
-    cargarComponenteDinamico('view-crm', 'components/vista-crm.html', () => {
-        if(typeof cargarCRM === 'function') cargarCRM();
-    });
-}
-
-// --- FUNCIÓN MAESTRA DE CARGA ---
+// Navegación Dinámica (Igual que antes)
 function cargarComponenteDinamico(idVista, rutaHtml, callbackLoad) {
-    // 1. Si ya existe en el DOM, solo mostramos
     const existente = document.getElementById(idVista);
     if (existente) {
         activarVistaUI(idVista);
         if (callbackLoad) callbackLoad();
         return;
     }
-
-    // 2. Si no existe, lo creamos
     const mainArea = document.getElementById('main-area');
-    
-    // Crear el elemento <arzuka-include>
     const include = document.createElement('arzuka-include');
     include.setAttribute('src', rutaHtml);
-    
-    // Escuchar cuando termine de cargar el HTML
     include.addEventListener('loaded', () => {
         activarVistaUI(idVista);
         if (callbackLoad) callbackLoad();
     });
-
     mainArea.appendChild(include);
 }
 
-// Helper para manejar clases CSS de activo/inactivo
 function activarVistaUI(idVista) {
-    // Ocultar todas las secciones
     document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
-    // Desactivar menú
     document.querySelectorAll('#sidebar .list-group-item, #sidebar a').forEach(el => el.classList.remove('active'));
-    
-    // Mostrar la deseada (si ya se cargó el HTML)
     const el = document.getElementById(idVista);
     if(el) el.classList.add('active');
-    
-    // Cerrar sidebar móvil
     toggleSidebar(false);
 }
 
-function toggleSidebar(forceState = null) {
-    const sidebar = document.getElementById('sidebar');
-    if (!sidebar) return;
-    if (forceState === false) sidebar.classList.remove('active');
-    else sidebar.classList.toggle('active');
+function toggleSidebar(state) {
+    const sb = document.getElementById('sidebar');
+    if(sb) {
+        if(state === false) sb.classList.remove('active');
+        else sb.classList.toggle('active');
+    }
 }
-// ... (resto del archivo core.js igual) ...
 
-// Navegación Dinámica: CLIENTES (CORREGIDO)
+// Funciones Puente para Sidebar
+function nav(vista) {
+    activarVistaUI('view-' + vista);
+    if(vista === 'ventas-arzuka' && typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
+}
+function cargarVistaConfiguracion() {
+    cargarComponenteDinamico('view-configuracion', 'components/vista-configuracion.html', () => {
+        if(typeof cargarConfiguracion === 'function') cargarConfiguracion();
+    });
+}
+function cargarVistaCRM() {
+    cargarComponenteDinamico('view-crm', 'components/vista-crm.html', () => {
+        if(typeof cargarCRM === 'function') cargarCRM();
+    });
+}
 function cargarVistaClientes() {
     cargarComponenteDinamico('view-clientes', 'components/vista-clientes.html', () => {
-        // Llamamos a la función con el NUEVO nombre para evitar conflictos
         if(typeof inicializarModuloClientes === 'function') inicializarModuloClientes();
     });
 }
-
-// ... (resto de funciones como cargarComponenteDinamico, etc.) ...

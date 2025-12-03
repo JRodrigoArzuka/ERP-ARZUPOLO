@@ -12,29 +12,22 @@ async function cargarConfiguracion() {
     document.getElementById('listaItemsMaestros').innerHTML = '<li class="list-group-item text-center"><div class="spinner-border spinner-border-sm text-primary"></div></li>';
 
     try {
-        const res = await callAPI('configuracion', 'obtenerDataConfiguracion');
-
-        if (res.success) {
-            // Claves
-            document.getElementById('txtConfigDocId').value = res.claves.DOC_TEMPLATE_ID || '';
-            document.getElementById('txtConfigFolderContratos').value = res.claves.CONTRACTS_FOLDER_ID || '';
-            document.getElementById('txtConfigFolderImagenes').value = res.claves.IMAGE_FOLDER_ID || '';
-            document.getElementById('txtConfigLoyverse').value = res.claves.LOYVERSE_API_TOKEN || '';
-            document.getElementById('txtConfigWasender').value = res.claves.WASENDER_API_KEY || '';
-            
-            // CACHÉ: Sincronizar interruptor
-            const cacheActivo = res.claves.CACHE_ENABLED;
-            document.getElementById('chkConfigCache').checked = cacheActivo;
-            CacheSystem.toggle(cacheActivo); // Sincronizar localStorage
-
-            // Globales
-            globalConfigData.listas = res.listas;
-            globalConfigData.usuarios = res.usuarios;
-            renderizarMaestros();
-            renderizarUsuarios();
-        } else {
-            alert("Error: " + res.error);
-        }
+       const res = await callAPI('crm', 'obtenerPlantillasCRM', {}, (datosFrescos) => {
+         if(datosFrescos.success) {
+             reglasGlobales = datosFrescos.plantillas;
+             estadosGlobales = datosFrescos.listaEstados || [];
+             llenarSelectEstadosCRM();
+             renderizarTablaCRM();
+         }
+    });
+    
+    if (res && res.success) {
+        // Renderizado Inicial (Caché)
+        reglasGlobales = res.plantillas;
+        estadosGlobales = res.listaEstados || [];
+        llenarSelectEstadosCRM();
+        renderizarTablaCRM();
+    }
     } catch (e) { console.error(e); }
 }
 

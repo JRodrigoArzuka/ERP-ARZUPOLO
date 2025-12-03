@@ -1,38 +1,65 @@
 /**
  * js/clientes.js
- * Lógica del Módulo de Clientes.
- * CORREGIDO: Nombre de función único para evitar conflictos con core.js
+ * Lógica del Módulo de Clientes (Optimizado SWR).
  */
 
 let listaClientesGlobal = [];
 
-// 1. CARGAR CLIENTES (Nombre cambiado para evitar conflicto)
 async function inicializarModuloClientes() {
-    
     const tbody = document.getElementById('tblClientesBody');
-    
-    // Validación de seguridad: Si el HTML no cargó aún, no hacer nada
-    if (!tbody) {
-        console.warn("El contenedor tblClientesBody no existe aún.");
-        return;
+    if (!tbody) return;
+
+    // Spinner solo si está vacío
+    if(tbody.children.length <= 1) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Cargando directorio...</td></tr>';
     }
 
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Cargando directorio...</td></tr>';
-
     try {
-        const res = await callAPI('clientes', 'obtenerListaClientes');
-        if (res.success) {
+        const res = await callAPI(
+            'clientes', 
+            'obtenerListaClientes', 
+            {},
+            // Callback: Se ejecuta si el servidor dice que hay clientes nuevos/modificados
+            (datosFrescos) => {
+                if (datosFrescos.success) {
+                    console.log("✨ Actualizando lista de clientes...");
+                    listaClientesGlobal = datosFrescos.clientes;
+                    renderizarTablaClientes(listaClientesGlobal);
+                }
+            }
+        );
+
+        if (res && res.success) {
             listaClientesGlobal = res.clientes;
             renderizarTablaClientes(listaClientesGlobal);
-        } else {
+        } else if (res) {
             tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${res.error}</td></tr>`;
         }
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error de red</td></tr>`;
+        console.error(e);
     }
 }
 
 function renderizarTablaClientes(lista) {
+    const tbody = document.getElementById('tblClientesBody');
+    tbody.innerHTML = '';
+    if (lista.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Sin clientes.</td></tr>'; return; }
+    
+    // Limitamos a 100 para renderizado rápido si hay miles
+    const listaVisible = lista.slice(0, 100); 
+
+    listaVisible.forEach(c => {
+        tbody.innerHTML += `
+            <tr>
+                <td class="fw-bold text-primary">${c.nombre}</td>
+                <td>${c.documento || '-'}</td>
+                <td>${c.celular || '-'}</td>
+                <td><button class="btn btn-sm btn-outline-info border-0" onclick="verHistorial('${c.id}')"><i class="bi bi-clock-history"></i></button></td>
+                <td class="text-end"><button class="btn btn-sm btn-light border" onclick="abrirModalCliente('${c.id}')"><i class="bi bi-pencil"></i></button></td>
+            </tr>
+        `;
+    });
+}
     const tbody = document.getElementById('tblClientesBody');
     if (!tbody) return;
     

@@ -13,22 +13,23 @@ async function cargarCRM() {
     if(tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>';
 
     try {
-        const res = await callAPI('crm', 'obtenerPlantillasCRM');
-        
-        if (res.success) {
-            reglasGlobales = res.plantillas;
-            estadosGlobales = res.listaEstados || []; // Guardar estados
-            
-            // Llenar el Select de Estados en el Modal
-            llenarSelectEstadosCRM();
-            
-            renderizarTablaCRM();
-        } else {
-            if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${res.error}</td></tr>`;
-        }
-    } catch (e) {
-        console.error(e);
+        const res = await callAPI('crm', 'obtenerPlantillasCRM', {}, (datosFrescos) => {
+         if(datosFrescos.success) {
+             reglasGlobales = datosFrescos.plantillas;
+             estadosGlobales = datosFrescos.listaEstados || [];
+             llenarSelectEstadosCRM();
+             renderizarTablaCRM();
+         }
+    });
+    
+    if (res && res.success) {
+        // Renderizado Inicial (Caché)
+        reglasGlobales = res.plantillas;
+        estadosGlobales = res.listaEstados || [];
+        llenarSelectEstadosCRM();
+        renderizarTablaCRM();
     }
+  
 }
 
 // Función para poblar el select
