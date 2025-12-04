@@ -1,11 +1,11 @@
 /**
  * js/gestion_tickets.js
  * Lógica del Frontend para la Super Ventana de Gestión.
- * VERSIÓN FINAL: Historial de Pagos y Saldos Calculados.
+ * VERSIÓN FINAL: Búsqueda Predictiva, Historial Pagos y Saldos Reales.
  */
 
 let currentTicketID = null;
-let currentClientData = {};
+let clientesCacheLocal = []; // Almacena la lista ligera para búsqueda rápida
 
 // =============================================================================
 // 1. ABRIR Y CARGAR EL MODAL
@@ -16,22 +16,30 @@ async function abrirGestionTicket(idTicket) {
     const modalEl = document.getElementById('modalGestionTicket');
     const modal = new bootstrap.Modal(modalEl);
     
-    // Reset UI
+    // Reset UI Textos
     document.getElementById('lblGestionTicketID').innerText = idTicket;
     
-    // Spinners de carga
-    document.getElementById('tblGestionProductos').innerHTML = '<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
-    document.getElementById('tblHistorialPagosBody').innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm text-secondary"></div></td></tr>';
+    // Reset Spinners
+    const spinner = '<div class="spinner-border spinner-border-sm text-secondary"></div>';
+    document.getElementById('tblGestionProductos').innerHTML = `<tr><td colspan="3" class="text-center py-3">${spinner}</td></tr>`;
+    document.getElementById('tblHistorialPagosBody').innerHTML = `<tr><td colspan="5" class="text-center py-3">${spinner}</td></tr>`;
     
-    ['lblResumenSubtotal', 'lblResumenDelivery', 'lblResumenTotal', 'lblResumenPendiente', 'lblPagoAbonado', 'lblPagoPendiente'].forEach(id => {
+    // Reset Labels Financieros
+    ['lblResumenSubtotal', 'lblResumenDelivery', 'lblResumenTotal', 'lblResumenAbonado', 'lblResumenPendiente', 'lblPagoAbonado', 'lblPagoPendiente'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.innerText = '...';
     });
 
+    // Reset Inputs Pagos
     document.getElementById('txtPagoMonto').value = '';
     document.getElementById('txtPagoOperacion').value = '';
     document.getElementById('filePagoVoucher').value = '';
     document.getElementById('lblFotoVoucher').innerText = 'Seleccionar imagen...';
+
+    // Reset Buscador Clientes
+    document.getElementById('txtGestionBusquedaCliente').value = '';
+    document.getElementById('hdnGestionIdCliente').value = '';
+    document.getElementById('listaResultadosClientes').style.display = 'none';
 
     // Reset Tabs
     const firstTabBtn = document.querySelector('#gestionTabs button[data-bs-target="#tab-resumen"]');
@@ -40,6 +48,7 @@ async function abrirGestionTicket(idTicket) {
     modal.show();
 
     try {
+        // Llamada Paralela para velocidad
         const [resDetalle, resGestion] = await Promise.all([
             callAPI('ventas', 'obtenerDetalleTicket', { id_ticket: idTicket }),
             callAPI('ventas', 'obtenerDatosGestionTicket', { id_ticket: idTicket })
@@ -58,7 +67,7 @@ async function abrirGestionTicket(idTicket) {
                     </tr>`;
             });
         } else {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No hay productos registrados.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No hay productos.</td></tr>';
         }
 
         // B. Renderizar Datos Gestión
@@ -68,34 +77,50 @@ async function abrirGestionTicket(idTicket) {
             const log = data.logistica;
             const listas = data.listas; 
             const pagos = data.pagos || [];
-
-            currentClientData = { nombre: cab.cliente_nombre || '', celular: cab.cliente_celular || '' };
             
-            // Nombre Cliente en Editar
-            const txtCliNom = document.getElementById('txtGestionClienteNombre');
-            if(txtCliNom) txtCliNom.value = cab.cliente_nombre || 'Desconocido';
+            // Guardar lista de clientes para el buscador
+            clientesCacheLocal = data.clientes || [];
 
-            // --- CÁLCULOS FINANCIEROS ---
+            // 1. Datos Cliente en Editar (Inicializar buscador con el actual)
+            document.getElementById('txtGestionBusquedaCliente').value = cab.cliente_nombre || '';
+            // No seteamos ID oculto para no disparar cambio si no toca nada, 
+            // a menos que queramos asegurar la integridad. Lo dejamos vacío o con ID actual si viniera.
+
+            // 2. Cálculos Financieros
             const total = Number(cab.total || 0);
             const delivery = Number(cab.costo_delivery || 0);
             const abonado = Number(cab.total_abonado || 0);
-            const pendiente = Number(cab.saldo_calculado || 0); // Usamos el calculado
+            const pendiente = Number(cab.saldo_calculado || 0);
             const subtotal = total - delivery;
 
             // Tab Resumen
             document.getElementById('lblResumenSubtotal').innerText = subtotal.toFixed(2);
             document.getElementById('lblResumenDelivery').innerText = delivery.toFixed(2);
             document.getElementById('lblResumenTotal').innerText = total.toFixed(2);
-            document.getElementById('lblResumenPendiente').innerText = pendiente.toFixed(2);
+            document.getElementById('lblResumenAbonado').innerText = abonado.toFixed(2);
             
-            // Tab Pagos (NUEVO DISEÑO)
+            // LÓGICA VISUAL DE DEUDA (Rojo vs Verde)
+            const alertPendiente = document.getElementById('alertSaldoPendiente');
+            const alertPagado = document.getElementById('alertSaldoPagado');
+            
+            if (pendiente <= 0.05) { // Margen de error céntimos
+                alertPendiente.classList.add('d-none');
+                alertPagado.classList.remove('d-none');
+                document.getElementById('lblPagoPendiente').innerText = "0.00";
+                document.getElementById('txtPagoMonto').value = ''; // Nada que pagar
+            } else {
+                alertPagado.classList.add('d-none');
+                alertPendiente.classList.remove('d-none');
+                document.getElementById('lblResumenPendiente').innerText = 'S/ ' + pendiente.toFixed(2);
+                
+                // Tab Pagos
+                document.getElementById('lblPagoPendiente').innerText = 'S/ ' + pendiente.toFixed(2);
+                document.getElementById('txtPagoMonto').value = pendiente.toFixed(2); // Sugerir pago total
+            }
+            
             document.getElementById('lblPagoAbonado').innerText = 'S/ ' + abonado.toFixed(2);
-            document.getElementById('lblPagoPendiente').innerText = 'S/ ' + pendiente.toFixed(2);
-            
-            // Sugerir monto a pagar
-            document.getElementById('txtPagoMonto').value = pendiente > 0 ? pendiente : ''; 
 
-            // --- TABLA HISTORIAL PAGOS ---
+            // 3. Tabla Historial Pagos
             const tblPagos = document.getElementById('tblHistorialPagosBody');
             tblPagos.innerHTML = '';
             if (pagos.length > 0) {
@@ -107,30 +132,27 @@ async function abrirGestionTicket(idTicket) {
                             <td class="small font-monospace">${p.operacion || '-'}</td>
                             <td class="small text-muted">${p.usuario || 'Sys'}</td>
                             <td class="text-end fw-bold text-success">S/ ${parseFloat(p.monto).toFixed(2)}</td>
-                        </tr>
-                    `;
+                        </tr>`;
                 });
             } else {
                 tblPagos.innerHTML = '<tr><td colspan="5" class="text-center text-muted fst-italic py-3">Sin pagos registrados.</td></tr>';
             }
 
-            // Logística
+            // 4. Logística
             document.getElementById('swGestionDelivery').checked = log.es_delivery;
             toggleGestionDelivery();
-            
             document.getElementById('txtGestionDireccion').value = log.direccion;
             document.getElementById('txtGestionReferencia').value = log.referencia;
             document.getElementById('txtGestionPersona').value = log.persona;
             document.getElementById('txtGestionContacto').value = log.contacto;
             document.getElementById('numGestionCostoDelivery').value = delivery;
 
-            // Galería
+            // 5. Galería y Selectores
             renderizarGaleria(data.multimedia);
-
-            // Selectores
             llenarSelect('selGestionVendedor', listas.vendedores, cab.id_vendedor);
             llenarSelectSimple('selGestionTipoEvento', listas.tiposEvento, cab.tipo_evento);
             
+            // Estado (Fallback si viene vacío)
             const selEst = document.getElementById('selGestionEstado');
             if(selEst.options.length <= 1) { 
                  const estadosDefault = ["Nuevo Pedido", "Pendiente de Envio", "Pendiente Aprobación", "Aprobado", "En Producción", "Producto Listo", "Enviado", "Entregado", "Anulado", "Registro de Anulacion", "Pendiente de Pago"];
@@ -139,20 +161,17 @@ async function abrirGestionTicket(idTicket) {
             }
             selEst.value = cab.estado;
 
+            // Otros campos
             document.getElementById('selGestionTurno').value = cab.turno;
             document.getElementById('txtGestionIdentidad').value = cab.identidad;
             document.getElementById('txtGestionTematica').value = cab.texto_tematica;
             document.getElementById('txtGestionObs').value = cab.observaciones;
+            document.getElementById('dateGestionEvento').value = cab.fecha_evento;
+            document.getElementById('dateGestionEntrega').value = cab.fecha_entrega;
 
-            const dateEvento = document.getElementById('dateGestionEvento');
-            dateEvento.value = cab.fecha_evento;
-            const dateEntrega = document.getElementById('dateGestionEntrega');
-            dateEntrega.value = cab.fecha_entrega;
-
-            // Contrato
+            // 6. Contrato
             const divLink = document.getElementById('divContratoLink');
             const divAction = document.getElementById('divContratoActions');
-            
             if (cab.url_contrato && cab.url_contrato.startsWith('http')) {
                 divLink.classList.remove('d-none');
                 document.getElementById('linkContratoFinal').href = cab.url_contrato;
@@ -171,58 +190,62 @@ async function abrirGestionTicket(idTicket) {
 }
 
 // =============================================================================
-// 2. LÓGICA DE FOTOS
+// 2. BUSCADOR PREDICTIVO DE CLIENTES
 // =============================================================================
 
-function renderizarGaleria(fotos) {
-    const container = document.getElementById('galeriaFotos');
-    container.innerHTML = '';
-    
-    if (!fotos || fotos.length === 0) {
-        container.innerHTML = '<div class="col-12 text-center text-muted py-5">No hay fotos cargadas.</div>';
+function buscarClientePredictivo() {
+    const input = document.getElementById('txtGestionBusquedaCliente');
+    const lista = document.getElementById('listaResultadosClientes');
+    const query = input.value.trim().toUpperCase();
+
+    // Limpiar ID si el usuario edita el texto manualmente
+    document.getElementById('hdnGestionIdCliente').value = '';
+
+    if (query.length < 2) {
+        lista.style.display = 'none';
         return;
     }
 
-    fotos.forEach((f, index) => {
-        let imgUrl = f.url;
-        if (imgUrl.includes('drive.google.com') && imgUrl.includes('id=')) {
-            const idMatch = imgUrl.match(/id=([a-zA-Z0-9_-]+)/);
-            if (idMatch) imgUrl = `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w800`;
-        }
+    // Filtrar en memoria (rápido)
+    const resultados = clientesCacheLocal.filter(c => c.texto && c.texto.includes(query)).slice(0, 10); // Top 10
 
-        container.innerHTML += `
-            <div class="col-6 col-md-4 col-lg-3">
-                <div class="card h-100 shadow-sm border">
-                    <div style="height: 160px; overflow: hidden; position: relative;" class="bg-light d-flex align-items-center justify-content-center cursor-pointer" onclick="window.open('${f.url}', '_blank')">
-                        <img src="${imgUrl}" class="w-100 h-100" style="object-fit: cover;" onerror="this.src='https://via.placeholder.com/150?text=Error';">
-                        <div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-50 text-white text-center small py-1">Ver Original</div>
-                    </div>
-                    <div class="card-body p-2">
-                        <textarea class="form-control form-control-sm mb-2" id="comment_${index}" rows="2" style="font-size: 0.8rem;">${f.comentario || ''}</textarea>
-                        <div class="d-flex justify-content-between align-items-center">
-                            <small class="text-muted" style="font-size: 0.65rem;">${f.fecha || ''}</small>
-                            <button class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 0.75rem;" onclick="guardarComentarioFoto('${f.url}', 'comment_${index}')"><i class="bi bi-check-lg"></i> Guardar</button>
-                        </div>
-                    </div>
-                </div>
-            </div>`;
-    });
+    lista.innerHTML = '';
+    if (resultados.length > 0) {
+        lista.style.display = 'block';
+        resultados.forEach(c => {
+            // c.texto viene como "NOMBRE | DOC | CEL"
+            const partes = c.texto.split('|');
+            const nombre = partes[0].trim();
+            const info = partes.slice(1).join(' | ');
+
+            const item = document.createElement('a');
+            item.className = 'list-group-item list-group-item-action cursor-pointer';
+            item.innerHTML = `<strong>${nombre}</strong><br><small class="text-muted">${info}</small>`;
+            item.onclick = () => seleccionarClienteBusqueda(c.id, nombre);
+            lista.appendChild(item);
+        });
+    } else {
+        lista.style.display = 'none';
+    }
 }
 
-async function guardarComentarioFoto(urlOriginal, inputId) {
-    const comentario = document.getElementById(inputId).value;
-    const btn = document.querySelector(`button[onclick*="${inputId}"]`);
-    btn.disabled = true; btn.innerHTML = '...';
-    try {
-        await callAPI('ventas', 'actualizarComentarioFoto', { url: urlOriginal, comentario: comentario });
-        btn.classList.replace('btn-outline-success', 'btn-success');
-        btn.innerHTML = '<i class="bi bi-check"></i>';
-        setTimeout(() => { btn.classList.replace('btn-success', 'btn-outline-success'); btn.disabled = false; }, 1500);
-    } catch (e) { alert("Error red"); btn.disabled = false; }
+function seleccionarClienteBusqueda(id, nombre) {
+    document.getElementById('txtGestionBusquedaCliente').value = nombre;
+    document.getElementById('hdnGestionIdCliente').value = id;
+    document.getElementById('listaResultadosClientes').style.display = 'none';
 }
+
+// Ocultar lista al hacer clic fuera
+document.addEventListener('click', function(event) {
+    const lista = document.getElementById('listaResultadosClientes');
+    const input = document.getElementById('txtGestionBusquedaCliente');
+    if (event.target !== input && event.target !== lista) {
+        lista.style.display = 'none';
+    }
+});
 
 // =============================================================================
-// 3. PAGOS Y CUENTA ABIERTA
+// 3. PAGOS Y REGISTRO
 // =============================================================================
 
 function previewVoucherName() {
@@ -235,26 +258,26 @@ function previewVoucherName() {
 async function registrarPago() {
     const inputMonto = document.getElementById('txtPagoMonto');
     const monto = parseFloat(inputMonto.value);
-    // Leemos el saldo pendiente del label actualizado
-    const lblPend = document.getElementById('lblPagoPendiente');
-    const textoPend = lblPend ? lblPend.innerText.replace('S/ ', '').trim() : '0';
+    
+    // Leer el saldo pendiente actual del label rojo
+    const textoPend = document.getElementById('lblPagoPendiente').innerText.replace('S/ ', '').trim();
     const pendienteActual = parseFloat(textoPend) || 0;
 
     if(!monto || monto <= 0) {
-        alert("⚠️ Por favor ingresa un monto válido.");
+        alert("⚠️ Ingresa un monto válido.");
         return;
     }
 
-    // Alerta de Sobrepago
     let msgConfirm = `¿Confirmar pago de S/ ${monto.toFixed(2)}?`;
-    if (monto > (pendienteActual + 0.05)) {
-        msgConfirm = `⚠️ ALERTA: El pago excede la deuda actual (S/ ${pendienteActual.toFixed(2)}).\n¿Deseas continuar y generar saldo a favor?`;
+    if (monto > (pendienteActual + 0.1)) {
+        msgConfirm = `⚠️ ALERTA DE SOBREPAGO\n\nEstás pagando S/ ${monto.toFixed(2)} y la deuda es solo S/ ${pendienteActual.toFixed(2)}.\n\n¿Deseas continuar?`;
     }
 
     if(!confirm(msgConfirm)) return;
 
     const btn = document.querySelector('#tab-pagos button.btn-success');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+    btn.disabled = true; 
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
 
     const usuario = JSON.parse(localStorage.getItem("erp_usuario"));
     const fileInput = document.getElementById('filePagoVoucher');
@@ -286,9 +309,9 @@ async function registrarPago() {
     try {
         const res = await callAPI('finanzas', 'registrarPagoWeb', payload);
         if (res.success) {
-            alert("✅ " + res.message);
-            abrirGestionTicket(currentTicketID); // Recargar para ver nuevo saldo
-            if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
+            alert("✅ Pago registrado.");
+            abrirGestionTicket(currentTicketID); // Recargar para ver historial y saldos nuevos
+            if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka(); // Actualizar dashboard
         } else {
             alert("⛔ Error: " + res.error);
         }
@@ -306,24 +329,23 @@ async function registrarPago() {
 
 async function guardarEdicion() {
     const nuevoEstado = document.getElementById('selGestionEstado').value;
-    const lblPend = document.getElementById('lblPagoPendiente'); // Usamos el nuevo label rojo
-    const textoPend = lblPend ? lblPend.innerText.replace('S/ ', '').replace(/,/g,'') : '0';
+    
+    // Leer Deuda desde el Label Pendiente
+    const textoPend = document.getElementById('lblPagoPendiente').innerText.replace('S/ ', '').trim();
     const deuda = parseFloat(textoPend) || 0;
 
-    // --- REGLA DE ORO ---
+    // Regla de Bloqueo
     const estadosRestringidos = ['Entregado', 'Enviado'];
-    
     if (estadosRestringidos.includes(nuevoEstado) && deuda > 0.50) { 
-        const modalBody = document.querySelector('#modalGestionTicket .modal-body');
-        modalBody.classList.add('bloqueo-deuda');
-        alert(`⛔ ¡ALTO! CUENTA ABIERTA ⛔\n\nEl cliente debe S/ ${deuda.toFixed(2)}.\nNO puedes cambiar a "${nuevoEstado}" hasta saldar la deuda.`);
-        setTimeout(() => modalBody.classList.remove('bloqueo-deuda'), 1000);
+        alert(`⛔ BLOQUEO POR DEUDA ⛔\n\nEl cliente debe S/ ${deuda.toFixed(2)}.\nNo puedes cambiar a "${nuevoEstado}" hasta que pague.`);
         return; 
     }
 
     if (!confirm("¿Actualizar datos del pedido?")) return;
     
     const usuario = JSON.parse(localStorage.getItem("erp_usuario"));
+    
+    // Recopilar datos, incluyendo posible cambio de cliente
     const payload = {
         id_ticket: currentTicketID,
         usuario_rol: usuario ? usuario.rol : 'Anon',
@@ -335,13 +357,19 @@ async function guardarEdicion() {
         fecha_entrega: document.getElementById('dateGestionEntrega').value,
         identidad: document.getElementById('txtGestionIdentidad').value,
         texto_tematica: document.getElementById('txtGestionTematica').value,
-        observaciones: document.getElementById('txtGestionObs').value
+        observaciones: document.getElementById('txtGestionObs').value,
+        
+        // Datos Cliente (Si se seleccionó uno nuevo en el buscador)
+        id_cliente: document.getElementById('hdnGestionIdCliente').value,
+        nombre_cliente: document.getElementById('txtGestionBusquedaCliente').value
     };
 
     try {
         const res = await callAPI('ventas', 'editarDatosTicket', payload);
         if (res.success) {
-            alert("✅ " + res.message);
+            alert("✅ Datos actualizados.");
+            // Si hubo cambio de cliente, recargamos para asegurar consistencia
+            if (payload.id_cliente) abrirGestionTicket(currentTicketID);
             if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
         } else {
             alert("⛔ Error: " + res.error);
@@ -350,7 +378,7 @@ async function guardarEdicion() {
 }
 
 // =============================================================================
-// 5. UTILIDADES UI
+// 5. UTILIDADES UI, FOTOS, ETC. (Estándar)
 // =============================================================================
 
 function llenarSelect(idSelect, arrayDatos, valorSeleccionado) {
@@ -407,28 +435,6 @@ async function guardarLogistica() {
     finally { btn.disabled = false; btn.innerHTML = 'Guardar Datos Delivery'; }
 }
 
-async function cambiarClienteTicket() {
-    const nuevoNombre = prompt("Ingresa el NOMBRE EXACTO del nuevo cliente:");
-    if (!nuevoNombre) return;
-    const datalist = document.getElementById('listaClientes');
-    let nuevoId = null;
-    for (let i = 0; i < datalist.options.length; i++) {
-        if (datalist.options[i].value === nuevoNombre) {
-            if(window.clientesCache) {
-                const c = window.clientesCache.find(cli => cli.nombre === nuevoNombre);
-                if(c) nuevoId = c.id;
-            }
-            break;
-        }
-    }
-    if (!nuevoId) { alert("Cliente no encontrado en memoria. Verifica el nombre."); return; }
-    if(!confirm(`¿Reasignar a ${nuevoNombre}?`)) return;
-    try {
-        const res = await callAPI('gestion', 'reasignarClienteTicket', { id_ticket: currentTicketID, id_cliente: nuevoId });
-        if(res.success) { alert("✅ Cliente actualizado."); abrirGestionTicket(currentTicketID); }
-    } catch(e) { alert("Error red"); }
-}
-
 function clickInputFoto() { document.getElementById('fileGestionFoto').click(); }
 
 async function subirFotoSeleccionada() {
@@ -446,6 +452,43 @@ async function subirFotoSeleccionada() {
         } catch (e) { alert("Error red"); }
         input.value = '';
     };
+}
+
+async function guardarComentarioFoto(urlOriginal, inputId) {
+    const comentario = document.getElementById(inputId).value;
+    try {
+        await callAPI('ventas', 'actualizarComentarioFoto', { url: urlOriginal, comentario: comentario });
+        alert("Comentario guardado.");
+    } catch (e) { alert("Error red"); }
+}
+
+function renderizarGaleria(fotos) {
+    const container = document.getElementById('galeriaFotos');
+    container.innerHTML = '';
+    if (!fotos || fotos.length === 0) {
+        container.innerHTML = '<div class="col-12 text-center text-muted py-5">No hay fotos cargadas.</div>';
+        return;
+    }
+    fotos.forEach((f, index) => {
+        let imgUrl = f.url;
+        if (imgUrl.includes('drive.google.com') && imgUrl.includes('id=')) {
+            const idMatch = imgUrl.match(/id=([a-zA-Z0-9_-]+)/);
+            if (idMatch) imgUrl = `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w800`;
+        }
+        container.innerHTML += `
+            <div class="col-6 col-md-4 col-lg-3">
+                <div class="card h-100 shadow-sm border">
+                    <div style="height: 160px; overflow: hidden; position: relative;" class="bg-light d-flex align-items-center justify-content-center cursor-pointer" onclick="window.open('${f.url}', '_blank')">
+                        <img src="${imgUrl}" class="w-100 h-100" style="object-fit: cover;">
+                        <div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-50 text-white text-center small py-1">Ver Original</div>
+                    </div>
+                    <div class="card-body p-2">
+                        <textarea class="form-control form-control-sm mb-2" id="comment_${index}" rows="2">${f.comentario || ''}</textarea>
+                        <button class="btn btn-sm btn-outline-success w-100" onclick="guardarComentarioFoto('${f.url}', 'comment_${index}')">Guardar</button>
+                    </div>
+                </div>
+            </div>`;
+    });
 }
 
 async function generarContrato() {

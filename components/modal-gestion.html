@@ -27,7 +27,7 @@
                 <!-- CONTENIDO TABS -->
                 <div class="tab-content flex-grow-1 overflow-auto p-4 bg-white" id="gestionTabContent">
                     
-                    <!-- TAB 1: RESUMEN -->
+                    <!-- TAB 1: RESUMEN (MEJORADO CON ABONOS) -->
                     <div class="tab-pane fade show active" id="tab-resumen">
                         <div class="row g-3">
                             <div class="col-md-8">
@@ -45,14 +45,24 @@
                                 <div class="card bg-light border-0">
                                     <div class="card-body">
                                         <h6 class="fw-bold text-primary mb-3">Totales Financieros</h6>
-                                        <div class="d-flex justify-content-between mb-1"><span>Subtotal:</span> <span id="lblResumenSubtotal">0.00</span></div>
-                                        <div class="d-flex justify-content-between mb-1 text-success"><span>+ Delivery:</span> <span id="lblResumenDelivery">0.00</span></div>
+                                        <div class="d-flex justify-content-between mb-1"><span>Subtotal Prod.:</span> <span id="lblResumenSubtotal">0.00</span></div>
+                                        <div class="d-flex justify-content-between mb-1 text-primary"><span>+ Delivery:</span> <span id="lblResumenDelivery">0.00</span></div>
                                         <hr class="my-2">
-                                        <h5 class="d-flex justify-content-between fw-bold"><span>Total:</span> <span id="lblResumenTotal">0.00</span></h5>
-                                        <div class="alert alert-warning py-2 text-center mt-3 mb-0 border-warning">
-                                            <small class="text-muted d-block">SALDO PENDIENTE</small>
-                                            <strong class="fs-5" id="lblResumenPendiente">0.00</strong>
+                                        <h5 class="d-flex justify-content-between fw-bold mb-3"><span>TOTAL VENTA:</span> <span id="lblResumenTotal">0.00</span></h5>
+                                        
+                                        <div class="d-flex justify-content-between mb-1 text-success fw-bold"><span>- Total Abonado:</span> <span id="lblResumenAbonado">0.00</span></div>
+                                        
+                                        <!-- ALERTA DE SALDO / PAGADO -->
+                                        <div id="alertSaldoPendiente" class="alert alert-danger py-2 text-center mt-3 mb-0 border-danger">
+                                            <small class="text-uppercase fw-bold" style="letter-spacing:1px">Saldo Pendiente</small>
+                                            <strong class="fs-4 d-block" id="lblResumenPendiente">0.00</strong>
                                         </div>
+                                        
+                                        <div id="alertSaldoPagado" class="alert alert-success py-2 text-center mt-3 mb-0 border-success d-none">
+                                            <i class="bi bi-check-circle-fill fs-4"></i><br>
+                                            <strong class="text-uppercase fw-bold">¡PEDIDO SIN DEUDAS!</strong>
+                                        </div>
+
                                     </div>
                                 </div>
                             </div>
@@ -125,24 +135,34 @@
                         </div>
                     </div>
 
-                    <!-- TAB 4: EDITAR (CON REASIGNACIÓN) -->
+                    <!-- TAB 4: EDITAR (CON BUSCADOR PREDICTIVO) -->
                     <div class="tab-pane fade" id="tab-editar">
                         <div class="alert alert-info small py-2 mb-4">
                             <i class="bi bi-info-circle me-1"></i> Solo personal autorizado puede modificar estos datos críticos.
                         </div>
                         
+                        <!-- SECCIÓN CLIENTE (BUSCADOR INTELIGENTE) -->
                         <div class="card border-primary mb-4">
-                            <div class="card-body bg-light py-2">
-                                <div class="row align-items-center">
-                                    <div class="col-md-8">
-                                        <label class="small fw-bold text-primary mb-1">Cliente Asignado</label>
-                                        <input type="text" id="txtGestionClienteNombre" class="form-control fw-bold text-dark" readonly value="Cargando...">
-                                    </div>
-                                    <div class="col-md-4 text-end mt-3 mt-md-0">
-                                        <button class="btn btn-outline-primary btn-sm" type="button" onclick="cambiarClienteTicket()">
-                                            <i class="bi bi-arrow-left-right me-1"></i> Cambiar Cliente
-                                        </button>
-                                    </div>
+                            <div class="card-header bg-primary text-white py-1 px-3 fw-bold small">Cliente Asignado</div>
+                            <div class="card-body bg-light position-relative">
+                                <label class="small fw-bold text-muted mb-1">Buscar Cliente (Nombre, DNI o Celular)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+                                    <!-- Input de Búsqueda -->
+                                    <input type="text" id="txtGestionBusquedaCliente" class="form-control fw-bold" 
+                                           placeholder="Escribe para buscar..." autocomplete="off" onkeyup="buscarClientePredictivo()">
+                                    <!-- Botón Nuevo -->
+                                    <button class="btn btn-success fw-bold" type="button" onclick="abrirModalCliente()">
+                                        <i class="bi bi-person-plus-fill"></i> Nuevo
+                                    </button>
+                                </div>
+                                <!-- Input Oculto para el ID Real -->
+                                <input type="hidden" id="hdnGestionIdCliente">
+                                
+                                <!-- Lista Flotante de Resultados -->
+                                <div id="listaResultadosClientes" class="list-group position-absolute w-100 shadow-lg mt-1" 
+                                     style="z-index: 1050; max-height: 250px; overflow-y: auto; display:none; left: 0;">
+                                     <!-- Se llena con JS -->
                                 </div>
                             </div>
                         </div>
@@ -205,7 +225,7 @@
                         </div>
                     </div>
 
-                    <!-- TAB 5: PAGOS (REDISEÑADO) -->
+                    <!-- TAB 5: PAGOS -->
                     <div class="tab-pane fade" id="tab-pagos">
                         <div class="row justify-content-center">
                             <div class="col-md-8">

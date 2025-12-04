@@ -1,30 +1,72 @@
 /**
  * js/ventas_arzuka.js
  * Lógica del Dashboard Comercial.
- * ACTUALIZADO: Filtro Mes Actual por defecto, Botón "Hoy" y Colores.
+ * ACTUALIZADO: Filtros de Fecha Inteligentes (Rangos Rápidos) y Colores.
  */
 
 let chartInstancia = null;
 let filtrosCargados = false;
 
 // =============================================================================
-// 1. INICIALIZACIÓN Y FILTROS
+// 1. LÓGICA DE FECHAS (RANGOS RÁPIDOS)
+// =============================================================================
+
+function aplicarRangoFecha(tipo) {
+    const hoy = new Date();
+    let inicio, fin;
+
+    // Helper para formato YYYY-MM-DD (Input HTML)
+    const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+
+    switch (tipo) {
+        case 'hoy':
+            inicio = new Date(hoy);
+            fin = new Date(hoy);
+            break;
+        case 'ayer':
+            inicio = new Date(hoy);
+            inicio.setDate(hoy.getDate() - 1);
+            fin = new Date(inicio);
+            break;
+        case 'semana': // Lunes a Domingo actual
+            inicio = new Date(hoy);
+            const day = hoy.getDay() || 7; // Hacer que domingo sea 7
+            if (day !== 1) inicio.setHours(-24 * (day - 1));
+            fin = new Date(hoy); // Hasta hoy (o fin de semana si prefieres)
+            break;
+        case 'ultima_semana': // Lunes a Domingo pasado
+            inicio = new Date(hoy);
+            const dayLast = hoy.getDay() || 7;
+            inicio.setDate(hoy.getDate() - dayLast - 6);
+            fin = new Date(inicio);
+            fin.setDate(inicio.getDate() + 6);
+            break;
+        case 'mes': // 1 al ultimo del mes actual
+            inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+            fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
+            break;
+        case 'mes_anterior': // 1 al ultimo del mes pasado
+            inicio = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
+            fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+            break;
+    }
+
+    if (inicio && fin) {
+        document.getElementById('filtroFechaDesde').value = fmt(inicio);
+        document.getElementById('filtroFechaHasta').value = fmt(fin);
+        cargarVentasArzuka(); // Recargar datos automáticamente
+    }
+}
+
+// =============================================================================
+// 2. CARGA DE DATOS Y FILTROS
 // =============================================================================
 
 async function cargarVentasArzuka() {
     // 1. Configurar fechas por defecto (MES ACTUAL) si están vacías
     if (!document.getElementById('filtroFechaDesde').value) {
-        const date = new Date();
-        // Primer día del mes
-        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
-        // Último día del mes
-        const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-        
-        // Helper para formato YYYY-MM-DD
-        const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-        
-        document.getElementById('filtroFechaDesde').value = fmt(firstDay);
-        document.getElementById('filtroFechaHasta').value = fmt(lastDay);
+        aplicarRangoFecha('mes'); // Usamos la lógica centralizada
+        return; // aplicarRangoFecha ya llama a cargarVentasArzuka, así que salimos
     }
 
     // 2. Cargar listas maestras (solo la primera vez)
@@ -45,9 +87,9 @@ async function cargarVentasArzuka() {
     };
 
     const tbody = document.getElementById('tablaVentasBody');
-    // Spinner suave
+    // Spinner
     if(tbody.children.length <= 1 || tbody.innerHTML.includes('Error')) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Cargando mes actual...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Procesando datos...</td></tr>';
     }
 
     try {
@@ -72,23 +114,6 @@ async function cargarVentasArzuka() {
     }
 }
 
-// NUEVA FUNCIÓN: Botón "Entregas Hoy"
-function filtrarEntregasHoy() {
-    const hoy = new Date();
-    const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    const hoyStr = fmt(hoy);
-    
-    // Setear fechas a HOY
-    document.getElementById('filtroFechaDesde').value = hoyStr;
-    document.getElementById('filtroFechaHasta').value = hoyStr;
-    
-    // Limpiar otros filtros para ver todo lo de hoy
-    document.getElementById('filtroEstado').value = '';
-    
-    // Recargar
-    cargarVentasArzuka();
-}
-
 async function cargarListasMaestrasFiltros() {
     try {
         const res = await callAPI('ventas', 'obtenerMaestrosVentas', {}, { useCache: true, ttl: 300 });
@@ -102,7 +127,7 @@ async function cargarListasMaestrasFiltros() {
             }
             selV.value = valV;
 
-            // B. Estados (Con soporte de color JSON)
+            // B. Estados (Soporte Color JSON)
             const selE = document.getElementById('filtroEstado');
             selE.innerHTML = '<option value="">Todos</option>';
             if(res.config && res.config.Estado_Pedido) {
@@ -118,6 +143,7 @@ async function cargarListasMaestrasFiltros() {
             llenarSelectSimple('filtroTurno', res.config.Turno || []);
             llenarSelectSimple('filtroPago', res.config.Metodo_Pago || []);
 
+            // Caché de clientes para búsqueda rápida en otros módulos
             if(res.clientes) window.clientesCache = res.clientes;
         }
     } catch (e) { console.error("Error filtros", e); }
@@ -133,7 +159,7 @@ function llenarSelectSimple(idSelect, data) {
 }
 
 // =============================================================================
-// 2. RENDERIZADO (UI)
+// 3. RENDERIZADO DEL DASHBOARD (TABLA Y GRÁFICOS)
 // =============================================================================
 
 function actualizarDashboard(ventas, resumen) {
@@ -155,16 +181,16 @@ function actualizarDashboard(ventas, resumen) {
         return;
     }
 
+    // Ordenar por fecha descendente
     const ventasOrdenadas = [...ventas].sort((a, b) => new Date(b.fecha + 'T' + b.hora) - new Date(a.fecha + 'T' + a.hora));
 
     ventasOrdenadas.forEach(v => {
-        // LÓGICA DE COLOR (Background tintado + Borde)
+        // Lógica de Color
         let badgeStyle = 'class="badge bg-light text-dark border"'; 
         
         if (v.color_estado) {
-            // Convertir Hex a RGB simple o usar opacidad CSS
-            // Usamos un fondo muy suave (10% opacidad) y texto del color fuerte
-            badgeStyle = `style="background-color:${v.color_estado}15; color:${v.color_estado}; border:1px solid ${v.color_estado}60;" class="badge"`;
+            // Fondo con 15% opacidad, borde con 60% opacidad, texto 100%
+            badgeStyle = `style="background-color:${v.color_estado}25; color:${v.color_estado}; border:1px solid ${v.color_estado}60;" class="badge"`;
         }
 
         const fila = `
@@ -240,7 +266,9 @@ function renderizarGrafico(datos) {
     });
 }
 
-/* ... (Las funciones de Sincronización y Nueva Venta se mantienen igual, no es necesario reenviarlas si no cambiaron, pero para copiar y pegar completo, las incluyo abajo) ... */
+// =============================================================================
+// 4. FUNCIONES AUXILIARES (Sincronización, etc.)
+// =============================================================================
 
 async function sincronizarLoyverse() {
     const btn = document.querySelector('button[onclick="sincronizarLoyverse()"]');
@@ -257,92 +285,27 @@ async function sincronizarLoyverse() {
 }
 
 async function abrirModalNuevaVenta() {
+    // Nota: Esta función es solo para abrir el modal, la lógica interna
+    // está en el archivo modal-nueva-venta.html o embebida.
+    // Mantenemos la llamada básica para que el botón funcione.
+    const modal = new bootstrap.Modal(document.getElementById('modalNuevaVenta'));
+    
+    // Limpieza básica
     document.getElementById('formVenta').reset();
     document.getElementById('bodyTablaVentas').innerHTML = '';
     document.getElementById('lblTotalVenta').innerText = '0.00';
-    document.getElementById('lblSaldoPendiente').innerText = '0.00';
     document.getElementById('dateEntrega').value = new Date().toISOString().split('T')[0];
-    const modal = new bootstrap.Modal(document.getElementById('modalNuevaVenta'));
-    modal.show();
-    agregarLineaProducto();
+    
+    // Re-poblar datalist de clientes si está disponible
     const dl = document.getElementById('listaClientes');
-    dl.innerHTML = '';
-    if(window.clientesCache) {
+    if(dl && window.clientesCache) {
+        dl.innerHTML = '';
         window.clientesCache.forEach(c => {
             const opt = document.createElement('option');
             opt.value = c.nombre;
             dl.appendChild(opt);
         });
     }
-}
-
-function agregarLineaProducto() {
-    const tbody = document.getElementById('bodyTablaVentas');
-    const id = Date.now();
-    tbody.insertAdjacentHTML('beforeend', `
-        <tr id="row_${id}">
-            <td><input class="form-control form-control-sm desc" placeholder="Item"></td>
-            <td><input type="number" class="form-control form-control-sm text-center cant" value="1" oninput="calcRow(${id})"></td>
-            <td><input type="number" class="form-control form-control-sm text-end price" value="0" oninput="calcRow(${id})"></td>
-            <td class="text-end fw-bold subtotal">0.00</td>
-            <td><i class="bi bi-x text-danger cursor-pointer" onclick="this.closest('tr').remove(); calcTotal();"></i></td>
-        </tr>
-    `);
-}
-
-function calcRow(id) {
-    const row = document.getElementById(`row_${id}`);
-    const cant = row.querySelector('.cant').value;
-    const price = row.querySelector('.price').value;
-    row.querySelector('.subtotal').innerText = (cant * price).toFixed(2);
-    calcTotal();
-}
-
-function calcTotal() {
-    let tot = 0;
-    document.querySelectorAll('.subtotal').forEach(el => tot += parseFloat(el.innerText));
-    document.getElementById('lblTotalVenta').innerText = tot.toFixed(2);
-    calcularSaldo();
-}
-
-function calcularSaldo() {
-    const total = parseFloat(document.getElementById('lblTotalVenta').innerText) || 0;
-    const aCuenta = parseFloat(document.getElementById('txtACuenta').value) || 0;
-    let saldo = total - aCuenta;
-    if (saldo < 0) saldo = 0;
-    document.getElementById('lblSaldoPendiente').innerText = saldo.toFixed(2);
-}
-
-async function guardarVenta() {
-    const cliente = document.getElementById('txtClienteBuscar').value;
-    if(!cliente) return alert("Falta cliente");
-    const items = [];
-    document.querySelectorAll('#bodyTablaVentas tr').forEach(r => {
-        const nom = r.querySelector('.desc').value;
-        const pre = parseFloat(r.querySelector('.price').value);
-        const cant = parseFloat(r.querySelector('.cant').value);
-        const sub = parseFloat(r.querySelector('.subtotal').innerText);
-        if(nom && pre) items.push({ nombre: nom, cantidad: cant, precio_unitario: pre, subtotal: sub });
-    });
-    if(items.length === 0) return alert("Agrega productos");
-    const btn = document.querySelector('#modalNuevaVenta .btn-success');
-    btn.disabled = true; btn.innerText = "Guardando...";
-    const clienteObj = window.clientesCache ? window.clientesCache.find(c => c.nombre === cliente) : null;
-    const idCliente = clienteObj ? clienteObj.id : ('NUEVO-' + Date.now());
-    const payload = {
-        cabecera: { id_cliente: idCliente, nombre_cliente: cliente, id_vendedor: 'WEB', observaciones: document.getElementById('txtObservaciones').value },
-        totales: { total_venta: parseFloat(document.getElementById('lblTotalVenta').innerText), saldo_pendiente: parseFloat(document.getElementById('lblSaldoPendiente').innerText) },
-        evento: { tipo: document.getElementById('selTipoEvento').value, fecha: document.getElementById('dateEntrega').value, turno: '' },
-        entrega: { es_delivery: document.getElementById('chkDelivery').checked, direccion: document.getElementById('txtDireccion').value, referencia: document.getElementById('txtReferencia').value, persona_recibe: cliente, celular_contacto: '' },
-        detalle: items
-    };
-    try {
-        const res = await callAPI('ventas', 'registrarVenta', payload);
-        if(res.success) {
-            alert("✅ Venta registrada: " + res.data.id_ticket);
-            bootstrap.Modal.getInstance(document.getElementById('modalNuevaVenta')).hide();
-            cargarVentasArzuka();
-        } else { alert("Error: " + res.error); }
-    } catch(e) { alert(e); } 
-    finally { btn.disabled = false; btn.innerText = "REGISTRAR"; }
+    
+    modal.show();
 }

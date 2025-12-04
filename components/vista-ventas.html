@@ -13,40 +13,51 @@
         </div>
     </div>
 
-    <!-- BARRA DE FILTROS ACTUALIZADA -->
+    <!-- BARRA DE FILTROS AVANZADA -->
     <div class="card shadow-sm border-0 mb-4 bg-white">
         <div class="card-body py-3">
-            <!-- Fila 1: Fechas, Vendedor y Botones de Acción -->
+            
+            <!-- Fila 1: Fechas Inteligentes y Acción -->
             <div class="row g-2 align-items-end mb-2">
-                <div class="col-md-4">
-                    <label class="small fw-bold text-muted">Rango de Fechas</label>
-                    <div class="input-group input-group-sm">
-                        <span class="input-group-text bg-white"><i class="bi bi-calendar-range"></i></span>
-                        <input type="date" id="filtroFechaDesde" class="form-control bg-light">
-                        <span class="input-group-text bg-white border-start-0 border-end-0">a</span>
-                        <input type="date" id="filtroFechaHasta" class="form-control bg-light">
+                <div class="col-md-6">
+                    <label class="small fw-bold text-muted">Periodo de Análisis</label>
+                    <div class="input-group">
+                        <button class="btn btn-outline-secondary dropdown-toggle bg-light text-dark fw-bold" type="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-calendar-week"></i> Rangos
+                        </button>
+                        <ul class="dropdown-menu shadow">
+                            <li><h6 class="dropdown-header">Selección Rápida</h6></li>
+                            <li><a class="dropdown-item cursor-pointer" onclick="aplicarRangoFecha('hoy')">📅 Hoy</a></li>
+                            <li><a class="dropdown-item cursor-pointer" onclick="aplicarRangoFecha('ayer')">⏪ Ayer</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item cursor-pointer" onclick="aplicarRangoFecha('semana')">🗓️ Esta Semana</a></li>
+                            <li><a class="dropdown-item cursor-pointer" onclick="aplicarRangoFecha('ultima_semana')">⏮️ Última Semana</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item cursor-pointer" onclick="aplicarRangoFecha('mes')">📂 Este Mes</a></li>
+                            <li><a class="dropdown-item cursor-pointer" onclick="aplicarRangoFecha('mes_anterior')">📁 Mes Anterior</a></li>
+                        </ul>
+                        <input type="date" id="filtroFechaDesde" class="form-control fw-bold text-secondary">
+                        <span class="input-group-text bg-white border-start-0 border-end-0">al</span>
+                        <input type="date" id="filtroFechaHasta" class="form-control fw-bold text-secondary">
                     </div>
                 </div>
-                <div class="col-md-3">
+                
+                <div class="col-md-4">
                     <label class="small fw-bold text-muted">Vendedor</label>
-                    <select id="filtroVendedor" class="form-select form-select-sm bg-light">
+                    <select id="filtroVendedor" class="form-select bg-light">
                         <option value="Todos">Todos los vendedores</option>
                     </select>
                 </div>
-                <div class="col-md-5 d-flex gap-2">
-                    <!-- Botón Rápido Entregas Hoy -->
-                    <button class="btn btn-outline-info btn-sm fw-bold shadow-sm flex-fill" onclick="filtrarEntregasHoy()">
-                        <i class="bi bi-calendar-event me-1"></i> Entregas Hoy
-                    </button>
-                    <!-- Botón Principal Filtrar -->
-                    <button class="btn btn-dark btn-sm fw-bold shadow-sm flex-fill" onclick="cargarVentasArzuka()">
+
+                <div class="col-md-2">
+                    <button class="btn btn-dark w-100 fw-bold shadow-sm" onclick="cargarVentasArzuka()">
                         <i class="bi bi-funnel-fill me-1"></i> FILTRAR
                     </button>
                 </div>
             </div>
 
-            <!-- Fila 2: Filtros Avanzados (Estado, Evento, Turno, Pago) -->
-            <div class="row g-2">
+            <!-- Fila 2: Filtros de Estado y Características -->
+            <div class="row g-2 mt-1">
                 <div class="col-6 col-md-3">
                     <label class="small text-muted fw-bold" style="font-size: 0.7rem;">ESTADO</label>
                     <select id="filtroEstado" class="form-select form-select-sm border-secondary-subtle">
