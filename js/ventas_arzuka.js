@@ -1,19 +1,29 @@
 /**
  * js/ventas_arzuka.js
- * Actualizado para SWR (Caché + Actualización en vivo).
+ * Lógica del Dashboard Comercial: Filtros, Gráficos Dinámicos y Caché.
+ * VERSIÓN FINAL CORREGIDA.
  */
 
 let chartInstancia = null;
 let filtrosCargados = false;
 
+// =============================================================================
+// 1. INICIALIZACIÓN Y FILTROS
+// =============================================================================
+
 async function cargarVentasArzuka() {
+    // 1. Configurar fechas por defecto
     if (!document.getElementById('filtroFechaDesde').value) {
         const hoy = new Date().toISOString().split('T')[0];
         document.getElementById('filtroFechaDesde').value = hoy;
         document.getElementById('filtroFechaHasta').value = hoy;
     }
 
-    if (!filtrosCargados) { await cargarFiltroVendedores(); filtrosCargados = true; }
+    // 2. Cargar lista de vendedores (solo una vez)
+    if (!filtrosCargados) {
+        await cargarFiltroVendedores();
+        filtrosCargados = true;
+    }
 
     const payload = {
         fechaDesde: document.getElementById('filtroFechaDesde').value,
@@ -22,18 +32,18 @@ async function cargarVentasArzuka() {
     };
 
     const tbody = document.getElementById('tablaVentasBody');
-    // Solo mostramos spinner si NO hay datos previos en pantalla para evitar parpadeo
+    // Spinner solo si está vacío para evitar parpadeo
     if(tbody.children.length <= 1) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Cargando...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Analizando datos...</td></tr>';
     }
 
     try {
-        // LLAMADA CON CALLBACK DE ACTUALIZACIÓN
+        // 3. LLAMADA CON CACHÉ Y CALLBACK
         const res = await callAPI(
             'ventas', 
             'obtenerVentasFiltradas', 
             payload, 
-            // Callback: Se ejecuta SI el servidor trae datos diferentes al caché
+            // Callback: Se ejecuta si el servidor trae datos nuevos en 2do plano
             (datosFrescos) => {
                 console.log("✨ Actualizando vista con datos frescos...");
                 if(datosFrescos.success) actualizarDashboard(datosFrescos.ventas, datosFrescos.resumen);
@@ -46,25 +56,27 @@ async function cargarVentasArzuka() {
             tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger py-4">Error: ${res.error}</td></tr>`;
         }
 
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error de conexión.</td></tr>';
+    }
 }
 
 async function cargarFiltroVendedores() {
     try {
-        const res = await callAPI('ventas', 'obtenerMaestrosVentas');
+        const res = await callAPI('ventas', 'obtenerMaestrosVentas', {}, { useCache: true, ttl: 60 });
         if (res.success && res.vendedores) {
             const sel = document.getElementById('filtroVendedor');
-            // Guardar selección actual
             const val = sel.value;
             sel.innerHTML = '<option value="Todos">Todos los vendedores</option>';
             res.vendedores.forEach(v => {
                 sel.innerHTML += `<option value="${v.nombre}">${v.nombre}</option>`;
             });
-            sel.value = val; // Restaurar
+            sel.value = val;
             
             if(res.clientes) window.clientesCache = res.clientes;
         }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error cargando vendedores", e); }
 }
 
 // =============================================================================
@@ -72,11 +84,14 @@ async function cargarFiltroVendedores() {
 // =============================================================================
 
 function actualizarDashboard(ventas, resumen) {
+    // A. KPIs
     document.getElementById('kpiTotalPeriodo').innerText = `S/ ${parseFloat(resumen.total).toFixed(2)}`;
     document.getElementById('kpiCantidadTickets').innerText = resumen.cantidad;
+    
     const promedio = resumen.cantidad > 0 ? (resumen.total / resumen.cantidad) : 0;
     document.getElementById('kpiTicketPromedio').innerText = `S/ ${promedio.toFixed(2)}`;
 
+    // B. TABLA
     const tbody = document.getElementById('tablaVentasBody');
     document.getElementById('lblCountTabla').innerText = `${ventas.length} registros`;
     tbody.innerHTML = '';
@@ -92,7 +107,7 @@ function actualizarDashboard(ventas, resumen) {
     ventasOrdenadas.forEach(v => {
         const fila = `
             <tr>
-                <td class="fw-bold text-primary font-monospace">${v.ticket}</td>
+                <td class="fw-bold text-primary font-monospace">${v.ticket || '---'}</td>
                 <td>${v.fecha} <small class="text-muted">${v.hora}</small></td>
                 <td>${v.cliente || 'General'}</td>
                 <td class="text-end fw-bold">S/ ${parseFloat(v.total).toFixed(2)}</td>
@@ -105,51 +120,9 @@ function actualizarDashboard(ventas, resumen) {
             </tr>`;
         tbody.insertAdjacentHTML('beforeend', fila);
     });
-    renderizarGrafico(ventas);
-}
-
-    // A. KPIs
-    document.getElementById('kpiTotalPeriodo').innerText = `S/ ${parseFloat(resumen.total).toFixed(2)}`;
-    document.getElementById('kpiCantidadTickets').innerText = resumen.cantidad;
-    
-    const promedio = resumen.cantidad > 0 ? (resumen.total / resumen.cantidad) : 0;
-    document.getElementById('kpiTicketPromedio').innerText = `S/ ${promedio.toFixed(2)}`;
-
-    // B. TABLA
-    const tbody = document.getElementById('tablaVentasBody');
-    document.getElementById('lblCountTabla').innerText = `${ventas.length} registros`;
-    tbody.innerHTML = '';
-
-    if (ventas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">No se encontraron ventas en este periodo.</td></tr>';
-        renderizarGrafico([]); // Limpiar gráfico
-        return;
-    }
-
-    // Ordenar: Más reciente primero
-    // El backend ya devuelve fechas, pero aseguramos orden visual
-    const ventasOrdenadas = [...ventas].sort((a, b) => new Date(b.fecha + 'T' + b.hora) - new Date(a.fecha + 'T' + a.hora));
-
-    ventasOrdenadas.forEach(v => {
-        const fila = `
-            <tr>
-                <td class="fw-bold text-primary font-monospace">${v.ticket || '---'}</td>
-                <td>${v.fecha} <small class="text-muted">${v.hora}</small></td>
-                <td>${v.cliente || 'General'}</td>
-                <td class="text-end fw-bold">S/ ${parseFloat(v.total).toFixed(2)}</td>
-                <td><span class="badge bg-light text-dark border">${v.vendedor || 'N/A'}</span></td>
-                <td class="text-center">
-                    <button class="btn btn-sm btn-outline-secondary border-0" onclick="abrirGestionTicket('${v.ticket}')">
-                        <i class="bi bi-gear-fill"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
-        tbody.insertAdjacentHTML('beforeend', fila);
-    });
 
     // C. GRÁFICO
-    renderizarGrafico(ventas); // Pasamos datos crudos para agrupar
+    renderizarGrafico(ventas);
 }
 
 function renderizarGrafico(datos) {
@@ -164,10 +137,6 @@ function renderizarGrafico(datos) {
 
     if (datos.length === 0) return;
 
-    // Agrupación Inteligente
-    // Si el rango es de 1 día -> Mostrar por Hora
-    // Si son varios días -> Mostrar por Día
-    
     const fDesde = document.getElementById('filtroFechaDesde').value;
     const fHasta = document.getElementById('filtroFechaHasta').value;
     const esMismoDia = fDesde === fHasta;
@@ -175,19 +144,16 @@ function renderizarGrafico(datos) {
     const dataMap = {};
 
     datos.forEach(v => {
-        // Clave: Hora (si es mismo día) o Fecha (si es rango)
-        const key = esMismoDia ? v.hora.substring(0, 2) + ':00' : v.fecha; // Hora "14:00" o Fecha "2023-10-25"
+        const key = esMismoDia ? v.hora.substring(0, 2) + ':00' : v.fecha;
         if (!dataMap[key]) dataMap[key] = 0;
         dataMap[key] += parseFloat(v.total);
     });
 
-    // Ordenar claves cronológicamente
     const labels = Object.keys(dataMap).sort();
     const values = labels.map(k => dataMap[k]);
 
-    // Crear Chart
     chartInstancia = new Chart(ctx, {
-        type: esMismoDia ? 'line' : 'bar', // Línea para horas, Barras para días
+        type: esMismoDia ? 'line' : 'bar',
         data: {
             labels: labels,
             datasets: [{
@@ -204,14 +170,7 @@ function renderizarGrafico(datos) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: (ctx) => ` S/ ${ctx.raw.toFixed(2)}`
-                    }
-                }
-            },
+            plugins: { legend: { display: false } },
             scales: {
                 y: { beginAtZero: true, grid: { borderDash: [2, 2] } },
                 x: { grid: { display: false } }
@@ -221,7 +180,7 @@ function renderizarGrafico(datos) {
 }
 
 // =============================================================================
-// 3. SINCRONIZACIÓN (Limpia caché para ver datos frescos)
+// 3. FUNCIONES AUXILIARES
 // =============================================================================
 
 async function sincronizarLoyverse() {
@@ -232,21 +191,13 @@ async function sincronizarLoyverse() {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
     
     try {
-        // Limpiamos caché local para forzar recarga post-sincronización
-        if(typeof CacheSystem !== 'undefined') CacheSystem.clear();
+        if(typeof CacheSystem !== 'undefined') CacheSystem.clear(); // Limpiar caché
 
-        const res = await callAPI('sincronizarLoyverse', 'sincronizarPedidosLoyverse');
+        const res = await callAPI('sincronizarLoyverse', 'sincronizarLoyverse');
         
         if (res.success) {
-            // Mostrar mensaje sutil en vez de alert invasivo
-            const toast = document.createElement('div');
-            toast.className = 'position-fixed bottom-0 end-0 p-3';
-            toast.style.zIndex = '2000';
-            toast.innerHTML = `<div class="toast show bg-success text-white"><div class="toast-body">${res.message}</div></div>`;
-            document.body.appendChild(toast);
-            setTimeout(() => toast.remove(), 3000);
-
-            cargarVentasArzuka(); // Recargar tabla
+            alert(res.message);
+            cargarVentasArzuka(); 
         } else {
             alert("⚠️ " + res.error);
         }
@@ -258,25 +209,23 @@ async function sincronizarLoyverse() {
     }
 }
 
-// =============================================================================
-// 4. MODAL NUEVA VENTA (Auxiliar)
-// =============================================================================
-
 async function abrirModalNuevaVenta() {
-    // Lógica de apertura (reset form, date today...)
     document.getElementById('formVenta').reset();
     document.getElementById('bodyTablaVentas').innerHTML = '';
     document.getElementById('lblTotalVenta').innerText = '0.00';
+    document.getElementById('lblSaldoPendiente').innerText = '0.00';
+    
+    document.getElementById('dateEntrega').value = new Date().toISOString().split('T')[0];
     
     const modal = new bootstrap.Modal(document.getElementById('modalNuevaVenta'));
     modal.show();
     
-    // Cargar listas si no están
-    if (!window.clientesCache || !window.configCache) {
+    agregarLineaProducto();
+
+    if (!window.clientesCache || window.clientesCache.length === 0) {
         await cargarFiltroVendedores();
     }
     
-    // Llenar datalist clientes
     const dl = document.getElementById('listaClientes');
     dl.innerHTML = '';
     if(window.clientesCache) {
@@ -286,15 +235,7 @@ async function abrirModalNuevaVenta() {
             dl.appendChild(opt);
         });
     }
-    // Llenar selects
-    if(window.configCache) {
-        // Llenar selects del formulario (implementar helpers si necesario)
-    }
 }
-
-// ... (Las funciones de agregarLineaProducto, calcularTotales, etc. se mantienen igual o se pueden importar si las tenías separadas. Si este archivo reemplaza al anterior, asegúrate de copiar esas funciones aquí también o mantenerlas).
-
-// PARA ASEGURAR QUE NO SE PIERDA LA LÓGICA DE CREAR VENTA, AGREGO LAS FUNCIONES BÁSICAS AQUÍ ABAJO:
 
 function agregarLineaProducto() {
     const tbody = document.getElementById('bodyTablaVentas');
@@ -322,6 +263,15 @@ function calcTotal() {
     let tot = 0;
     document.querySelectorAll('.subtotal').forEach(el => tot += parseFloat(el.innerText));
     document.getElementById('lblTotalVenta').innerText = tot.toFixed(2);
+    calcularSaldo();
+}
+
+function calcularSaldo() {
+    const total = parseFloat(document.getElementById('lblTotalVenta').innerText) || 0;
+    const aCuenta = parseFloat(document.getElementById('txtACuenta').value) || 0;
+    let saldo = total - aCuenta;
+    if (saldo < 0) saldo = 0;
+    document.getElementById('lblSaldoPendiente').innerText = saldo.toFixed(2);
 }
 
 async function guardarVenta() {
@@ -330,27 +280,58 @@ async function guardarVenta() {
     
     const items = [];
     document.querySelectorAll('#bodyTablaVentas tr').forEach(r => {
-        items.push({
-            nombre: r.querySelector('.desc').value,
-            cantidad: r.querySelector('.cant').value,
-            precio_unitario: r.querySelector('.price').value,
-            subtotal: r.querySelector('.subtotal').innerText
-        });
+        const nom = r.querySelector('.desc').value;
+        const pre = parseFloat(r.querySelector('.price').value);
+        const cant = parseFloat(r.querySelector('.cant').value);
+        const sub = parseFloat(r.querySelector('.subtotal').innerText);
+        if(nom && pre) items.push({ nombre: nom, cantidad: cant, precio_unitario: pre, subtotal: sub });
     });
+    
+    if(items.length === 0) return alert("Agrega productos");
+
+    const btn = document.querySelector('#modalNuevaVenta .btn-success');
+    btn.disabled = true; btn.innerText = "Guardando...";
+
+    const clienteObj = window.clientesCache ? window.clientesCache.find(c => c.nombre === cliente) : null;
+    const idCliente = clienteObj ? clienteObj.id : ('NUEVO-' + Date.now());
 
     const payload = {
-        cabecera: { nombre_cliente: cliente, id_vendedor: 'WEB' }, // Ajustar según backend
-        totales: { total_venta: document.getElementById('lblTotalVenta').innerText, saldo_pendiente: document.getElementById('lblTotalVenta').innerText },
-        evento: { tipo: 'Venta Web', fecha: new Date(), turno: '' },
-        entrega: { es_delivery: false },
+        cabecera: { 
+            id_cliente: idCliente, 
+            nombre_cliente: cliente, 
+            id_vendedor: 'WEB', 
+            observaciones: document.getElementById('txtObservaciones').value 
+        },
+        totales: { 
+            total_venta: parseFloat(document.getElementById('lblTotalVenta').innerText), 
+            saldo_pendiente: parseFloat(document.getElementById('lblSaldoPendiente').innerText) 
+        },
+        evento: { 
+            tipo: document.getElementById('selTipoEvento').value, 
+            fecha: document.getElementById('dateEntrega').value, 
+            turno: '' 
+        },
+        entrega: { 
+            es_delivery: document.getElementById('chkDelivery').checked,
+            direccion: document.getElementById('txtDireccion').value,
+            referencia: document.getElementById('txtReferencia').value,
+            persona_recibe: cliente,
+            celular_contacto: ''
+        },
         detalle: items
     };
     
-    // Enviar... (Implementación simplificada, conectar con tu backend real)
-    const res = await callAPI('ventas', 'registrarVenta', payload);
-    if(res.success) {
-        alert("Venta creada");
-        bootstrap.Modal.getInstance(document.getElementById('modalNuevaVenta')).hide();
-        cargarVentasArzuka();
+    try {
+        const res = await callAPI('ventas', 'registrarVenta', payload);
+        if(res.success) {
+            alert("✅ Venta registrada: " + res.data.id_ticket);
+            bootstrap.Modal.getInstance(document.getElementById('modalNuevaVenta')).hide();
+            cargarVentasArzuka();
+        } else {
+            alert("Error: " + res.error);
+        }
+    } catch(e) { alert(e); } 
+    finally { 
+        btn.disabled = false; btn.innerText = "REGISTRAR"; 
     }
 }

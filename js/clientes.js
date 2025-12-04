@@ -1,6 +1,7 @@
 /**
  * js/clientes.js
  * Lógica del Módulo de Clientes (Optimizado SWR).
+ * VERSIÓN FINAL CORREGIDA.
  */
 
 let listaClientesGlobal = [];
@@ -19,10 +20,8 @@ async function inicializarModuloClientes() {
             'clientes', 
             'obtenerListaClientes', 
             {},
-            // Callback: Se ejecuta si el servidor dice que hay clientes nuevos/modificados
             (datosFrescos) => {
                 if (datosFrescos.success) {
-                    console.log("✨ Actualizando lista de clientes...");
                     listaClientesGlobal = datosFrescos.clientes;
                     renderizarTablaClientes(listaClientesGlobal);
                 }
@@ -43,9 +42,11 @@ async function inicializarModuloClientes() {
 function renderizarTablaClientes(lista) {
     const tbody = document.getElementById('tblClientesBody');
     tbody.innerHTML = '';
-    if (lista.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Sin clientes.</td></tr>'; return; }
+    if (lista.length === 0) { 
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Sin clientes.</td></tr>'; 
+        return; 
+    }
     
-    // Limitamos a 100 para renderizado rápido si hay miles
     const listaVisible = lista.slice(0, 100); 
 
     listaVisible.forEach(c => {
@@ -56,30 +57,6 @@ function renderizarTablaClientes(lista) {
                 <td>${c.celular || '-'}</td>
                 <td><button class="btn btn-sm btn-outline-info border-0" onclick="verHistorial('${c.id}')"><i class="bi bi-clock-history"></i></button></td>
                 <td class="text-end"><button class="btn btn-sm btn-light border" onclick="abrirModalCliente('${c.id}')"><i class="bi bi-pencil"></i></button></td>
-            </tr>
-        `;
-    });
-}
-    const tbody = document.getElementById('tblClientesBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-
-    if (lista.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No hay clientes registrados.</td></tr>';
-        return;
-    }
-
-    lista.forEach(c => {
-        tbody.innerHTML += `
-            <tr>
-                <td class="fw-bold text-primary">${c.nombre}</td>
-                <td>${c.documento || '-'}</td>
-                <td>${c.celular || '-'}</td>
-                <td><button class="btn btn-sm btn-outline-info border-0" onclick="verHistorial('${c.id}')"><i class="bi bi-clock-history"></i> Ver</button></td>
-                <td class="text-end">
-                    <button class="btn btn-sm btn-light border" onclick="abrirModalCliente('${c.id}')"><i class="bi bi-pencil"></i></button>
-                </td>
             </tr>
         `;
     });
@@ -95,7 +72,7 @@ function filtrarClientesTabla() {
     renderizarTablaClientes(filtrados);
 }
 
-// 2. CREAR / EDITAR
+// CREAR / EDITAR
 function abrirModalCliente(id = null) {
     const modal = new bootstrap.Modal(document.getElementById('modalCliente'));
     document.getElementById('formCliente').reset();
@@ -142,7 +119,7 @@ async function guardarClienteForm() {
         if (res.success) {
             alert("✅ Guardado.");
             bootstrap.Modal.getInstance(document.getElementById('modalCliente')).hide();
-            inicializarModuloClientes(); // Recargar lista
+            inicializarModuloClientes();
         } else {
             alert("Error: " + res.error);
         }
@@ -150,7 +127,6 @@ async function guardarClienteForm() {
     finally { btn.disabled = false; btn.innerText = "Guardar"; }
 }
 
-// 3. VER HISTORIAL
 async function verHistorial(idCliente) {
     const modal = new bootstrap.Modal(document.getElementById('modalHistorialCliente'));
     const tbody = document.getElementById('tblHistorialBody');
@@ -165,6 +141,6 @@ async function verHistorial(idCliente) {
             tbody.innerHTML += `<tr><td>${h.ticket}</td><td>${h.fecha}</td><td>${h.estado}</td><td class="text-end">S/ ${parseFloat(h.total).toFixed(2)}</td></tr>`;
         });
     } else {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Sin compras registradas.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">Sin compras.</td></tr>';
     }
 }
