@@ -113,26 +113,44 @@
 
                 </div>
 
-                <!-- TAB 2: LISTAS MAESTRAS -->
+                <!-- TAB 2: LISTAS MAESTRAS (ACTUALIZADO CON COLORES) -->
                 <div class="tab-pane fade" id="conf-maestros">
                     <div class="row">
                         <div class="col-md-4 border-end">
                             <h6 class="fw-bold text-muted mb-3">Categoría</h6>
                             <div class="list-group" id="listCategoriasMaestras">
-                                <button class="list-group-item list-group-item-action active" onclick="seleccionarCategoria('Tipo_Evento', this)">Tipos de Evento</button>
+                                <button class="list-group-item list-group-item-action active" onclick="seleccionarCategoria('Estado_Pedido', this)">
+                                    <i class="bi bi-stoplights me-2"></i> Estados del Pedido
+                                </button>
+                                <button class="list-group-item list-group-item-action" onclick="seleccionarCategoria('Tipo_Evento', this)">Tipos de Evento</button>
                                 <button class="list-group-item list-group-item-action" onclick="seleccionarCategoria('Turno', this)">Turnos</button>
                                 <button class="list-group-item list-group-item-action" onclick="seleccionarCategoria('Metodo_Pago', this)">Métodos de Pago</button>
-                                <button class="list-group-item list-group-item-action" onclick="seleccionarCategoria('Estado_Pedido', this)">Estados</button>
                             </div>
                         </div>
                         <div class="col-md-8 ps-md-4">
                             <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h6 class="fw-bold m-0" id="lblCategoriaSeleccionada">Tipos de Evento</h6>
+                                <h6 class="fw-bold m-0" id="lblCategoriaSeleccionada">Estados del Pedido</h6>
                             </div>
+                            
+                            <!-- FORMULARIO DE AGREGADO CON COLOR -->
                             <div class="input-group mb-3">
-                                <input type="text" id="txtNuevoItemMaestro" class="form-control" placeholder="Nuevo valor...">
-                                <button class="btn btn-success" type="button" onclick="agregarItemMaestro()"><i class="bi bi-plus-lg"></i></button>
+                                <input type="text" id="txtNuevoItemMaestro" class="form-control" placeholder="Nombre del Estado/Item...">
+                                
+                                <!-- Selector de Color (Solo visible para Estados) -->
+                                <input type="color" id="clrNuevoItemMaestro" class="form-control form-control-color" value="#0d6efd" title="Elegir color" style="max-width: 50px; display: block;">
+                                
+                                <button class="btn btn-success" type="button" onclick="agregarItemMaestro()">
+                                    <i class="bi bi-plus-lg"></i>
+                                </button>
                             </div>
+
+                            <!-- BOTÓN CARGA RÁPIDA -->
+                            <div id="btnDefaultsContainer" class="mb-2 d-none">
+                                <button class="btn btn-sm btn-outline-info w-100" onclick="cargarEstadosDefault()">
+                                    <i class="bi bi-arrow-repeat"></i> Cargar los 11 Estados del Ciclo por Defecto
+                                </button>
+                            </div>
+
                             <ul class="list-group" id="listaItemsMaestros"></ul>
                         </div>
                     </div>

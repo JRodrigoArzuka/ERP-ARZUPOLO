@@ -13,28 +13,58 @@
         </div>
     </div>
 
-    <!-- BARRA DE FILTROS -->
+    <!-- BARRA DE FILTROS ACTUALIZADA -->
     <div class="card shadow-sm border-0 mb-4 bg-white">
-        <div class="card-body py-2">
-            <div class="row g-2 align-items-end">
-                <div class="col-6 col-md-3">
-                    <label class="small fw-bold text-muted">Desde</label>
-                    <input type="date" id="filtroFechaDesde" class="form-control form-control-sm bg-light">
+        <div class="card-body py-3">
+            <!-- Fila 1: Fechas, Vendedor y Botón Principal -->
+            <div class="row g-2 align-items-end mb-2">
+                <div class="col-md-5">
+                    <label class="small fw-bold text-muted">Rango de Fechas</label>
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white"><i class="bi bi-calendar-range"></i></span>
+                        <input type="date" id="filtroFechaDesde" class="form-control bg-light">
+                        <span class="input-group-text bg-white border-start-0 border-end-0">hasta</span>
+                        <input type="date" id="filtroFechaHasta" class="form-control bg-light">
+                    </div>
                 </div>
-                <div class="col-6 col-md-3">
-                    <label class="small fw-bold text-muted">Hasta</label>
-                    <input type="date" id="filtroFechaHasta" class="form-control form-control-sm bg-light">
-                </div>
-                <div class="col-md-4">
+                <div class="col-md-5">
                     <label class="small fw-bold text-muted">Vendedor</label>
                     <select id="filtroVendedor" class="form-select form-select-sm bg-light">
                         <option value="Todos">Todos los vendedores</option>
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button class="btn btn-dark btn-sm w-100 fw-bold" onclick="cargarVentasArzuka()">
-                        <i class="bi bi-funnel-fill"></i> Filtrar
+                    <button class="btn btn-dark btn-sm w-100 fw-bold h-100 shadow-sm" onclick="cargarVentasArzuka()">
+                        <i class="bi bi-funnel-fill"></i> APLICAR FILTROS
                     </button>
+                </div>
+            </div>
+
+            <!-- Fila 2: Filtros Avanzados (Estado, Evento, Turno, Pago) -->
+            <div class="row g-2">
+                <div class="col-6 col-md-3">
+                    <label class="small text-muted fw-bold" style="font-size: 0.7rem;">ESTADO</label>
+                    <select id="filtroEstado" class="form-select form-select-sm border-secondary-subtle">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="small text-muted fw-bold" style="font-size: 0.7rem;">TIPO EVENTO</label>
+                    <select id="filtroEvento" class="form-select form-select-sm border-secondary-subtle">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="small text-muted fw-bold" style="font-size: 0.7rem;">TURNO</label>
+                    <select id="filtroTurno" class="form-select form-select-sm border-secondary-subtle">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="small text-muted fw-bold" style="font-size: 0.7rem;">MÉTODO PAGO</label>
+                    <select id="filtroPago" class="form-select form-select-sm border-secondary-subtle">
+                        <option value="">Todos</option>
+                    </select>
                 </div>
             </div>
         </div>
@@ -101,7 +131,7 @@
                         <th>Fecha</th>
                         <th>Cliente</th>
                         <th class="text-end">Total</th>
-                        <th>Vendedor</th>
+                        <th>Estado</th> <!-- Columna Estado explícita -->
                         <th class="text-center">Acción</th>
                     </tr>
                 </thead>

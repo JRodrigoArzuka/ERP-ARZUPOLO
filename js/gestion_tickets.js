@@ -1,7 +1,7 @@
 /**
  * js/gestion_tickets.js
  * Lógica del Frontend para la Super Ventana de Gestión.
- * VERSIÓN FINAL: Corrección de Fotos (Visualización y Edición).
+ * VERSIÓN FINAL: Implementación de "Cuenta Abierta" y Bloqueo por Deuda.
  */
 
 let currentTicketID = null;
@@ -16,6 +16,7 @@ async function abrirGestionTicket(idTicket) {
     const modalEl = document.getElementById('modalGestionTicket');
     const modal = new bootstrap.Modal(modalEl);
     
+    // Reset UI
     document.getElementById('lblGestionTicketID').innerText = idTicket;
     document.getElementById('tblGestionProductos').innerHTML = '<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> Cargando...</td></tr>';
     
@@ -29,6 +30,7 @@ async function abrirGestionTicket(idTicket) {
     document.getElementById('filePagoVoucher').value = '';
     document.getElementById('lblFotoVoucher').innerText = 'Seleccionar imagen...';
 
+    // Reset Tabs
     const firstTabBtn = document.querySelector('#gestionTabs button[data-bs-target="#tab-resumen"]');
     if(firstTabBtn) new bootstrap.Tab(firstTabBtn).show();
     
@@ -40,7 +42,7 @@ async function abrirGestionTicket(idTicket) {
             callAPI('ventas', 'obtenerDatosGestionTicket', { id_ticket: idTicket })
         ]);
 
-        // Tabla Productos
+        // A. Renderizar Productos
         const tbody = document.getElementById('tblGestionProductos');
         tbody.innerHTML = '';
         if (resDetalle.success && resDetalle.items && resDetalle.items.length > 0) {
@@ -56,7 +58,7 @@ async function abrirGestionTicket(idTicket) {
             tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No hay productos registrados.</td></tr>';
         }
 
-        // Datos Gestión
+        // B. Renderizar Datos Gestión
         if (resGestion.success) {
             const data = resGestion.data;
             const cab = data.cabecera;
@@ -64,7 +66,12 @@ async function abrirGestionTicket(idTicket) {
             const listas = data.listas; 
 
             currentClientData = { nombre: cab.cliente_nombre || '', celular: cab.cliente_celular || '' };
+            
+            // Mostrar nombre cliente en tab editar (Nuevo requerimiento visual)
+            const txtCliNom = document.getElementById('txtGestionClienteNombre');
+            if(txtCliNom) txtCliNom.value = cab.cliente_nombre || 'Desconocido';
 
+            // Cálculos Financieros
             const total = Number(cab.total || 0);
             const delivery = Number(cab.costo_delivery || 0);
             const saldo = Number(cab.saldo || 0);
@@ -74,9 +81,13 @@ async function abrirGestionTicket(idTicket) {
             document.getElementById('lblResumenDelivery').innerText = delivery.toFixed(2);
             document.getElementById('lblResumenTotal').innerText = total.toFixed(2);
             document.getElementById('lblResumenPendiente').innerText = saldo.toFixed(2);
+            
+            // Sección Pagos
             document.getElementById('lblPagoDeuda').innerText = 'S/ ' + saldo.toFixed(2);
+            // Sugerir monto total si hay deuda
             document.getElementById('txtPagoMonto').value = saldo > 0 ? saldo : ''; 
 
+            // Logística
             document.getElementById('swGestionDelivery').checked = log.es_delivery;
             toggleGestionDelivery();
             
@@ -86,13 +97,23 @@ async function abrirGestionTicket(idTicket) {
             document.getElementById('txtGestionContacto').value = log.contacto;
             document.getElementById('numGestionCostoDelivery').value = delivery;
 
-            // GALERÍA (Aquí está la magia)
+            // Galería
             renderizarGaleria(data.multimedia);
 
+            // Selectores (Listas Maestras)
             llenarSelect('selGestionVendedor', listas.vendedores, cab.id_vendedor);
             llenarSelectSimple('selGestionTipoEvento', listas.tiposEvento, cab.tipo_evento);
+            
+            // Estado (Si la lista de estados viene del backend, la usamos, sino hardcode)
+            // Aquí asumimos hardcode standard o carga previa, pero usamos el valor actual
+            const selEst = document.getElementById('selGestionEstado');
+            if(selEst.options.length <= 1) { // Si está vacío salvo el default
+                 const estadosDefault = ["Nuevo Pedido", "Pendiente de Envio", "Pendiente Aprobación", "Aprobado", "En Producción", "Producto Listo", "Enviado", "Entregado", "Anulado", "Registro de Anulacion", "Pendiente de Pago"];
+                 selEst.innerHTML = '';
+                 estadosDefault.forEach(e => selEst.innerHTML += `<option value="${e}">${e}</option>`);
+            }
+            selEst.value = cab.estado;
 
-            document.getElementById('selGestionEstado').value = cab.estado;
             document.getElementById('selGestionTurno').value = cab.turno;
             document.getElementById('txtGestionIdentidad').value = cab.identidad;
             document.getElementById('txtGestionTematica').value = cab.texto_tematica;
@@ -103,6 +124,7 @@ async function abrirGestionTicket(idTicket) {
             const dateEntrega = document.getElementById('dateGestionEntrega');
             dateEntrega.value = cab.fecha_entrega;
 
+            // Contrato
             const divLink = document.getElementById('divContratoLink');
             const divAction = document.getElementById('divContratoActions');
             
@@ -137,12 +159,11 @@ function renderizarGaleria(fotos) {
     }
 
     fotos.forEach((f, index) => {
-        // TRUCO: Convertir URL de descarga a URL de miniatura para que el navegador la muestre
+        // TRUCO: Convertir URL de descarga a URL de miniatura
         let imgUrl = f.url;
         if (imgUrl.includes('drive.google.com') && imgUrl.includes('id=')) {
             const idMatch = imgUrl.match(/id=([a-zA-Z0-9_-]+)/);
             if (idMatch) {
-                // Usamos lh3.googleusercontent.com o el endpoint de thumbnail que es permisivo
                 imgUrl = `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w800`;
             }
         }
@@ -150,7 +171,6 @@ function renderizarGaleria(fotos) {
         container.innerHTML += `
             <div class="col-6 col-md-4 col-lg-3">
                 <div class="card h-100 shadow-sm border">
-                    <!-- Imagen -->
                     <div style="height: 160px; overflow: hidden; position: relative;" class="bg-light d-flex align-items-center justify-content-center cursor-pointer" onclick="window.open('${f.url}', '_blank')">
                         <img src="${imgUrl}" class="w-100 h-100" style="object-fit: cover;" 
                              onerror="this.src='https://via.placeholder.com/150?text=Error+Carga'; this.title='Error cargando imagen';">
@@ -158,11 +178,8 @@ function renderizarGaleria(fotos) {
                             <i class="bi bi-zoom-in"></i> Ver Original
                         </div>
                     </div>
-
-                    <!-- Cuerpo Editable -->
                     <div class="card-body p-2">
-                        <textarea class="form-control form-control-sm mb-2" id="comment_${index}" rows="3" style="font-size: 0.8rem;">${f.comentario || ''}</textarea>
-                        
+                        <textarea class="form-control form-control-sm mb-2" id="comment_${index}" rows="2" style="font-size: 0.8rem;">${f.comentario || ''}</textarea>
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted" style="font-size: 0.65rem;">${f.fecha || ''}</small>
                             <button class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 0.75rem;" onclick="guardarComentarioFoto('${f.url}', 'comment_${index}')">
@@ -171,8 +188,7 @@ function renderizarGaleria(fotos) {
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
     });
 }
 
@@ -182,7 +198,7 @@ async function guardarComentarioFoto(urlOriginal, inputId) {
     const originalHtml = btn.innerHTML;
 
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm" style="width: 0.7rem; height: 0.7rem;"></span>';
+    btn.innerHTML = '...';
 
     try {
         const res = await callAPI('ventas', 'actualizarComentarioFoto', { 
@@ -191,32 +207,28 @@ async function guardarComentarioFoto(urlOriginal, inputId) {
         });
 
         if (res.success) {
-            // Feedback visual positivo temporal
-            btn.classList.remove('btn-outline-success');
-            btn.classList.add('btn-success', 'text-white');
-            btn.innerHTML = '<i class="bi bi-check2-all"></i> Listo';
+            btn.classList.replace('btn-outline-success', 'btn-success');
+            btn.innerHTML = '<i class="bi bi-check"></i>';
             setTimeout(() => {
-                btn.classList.remove('btn-success', 'text-white');
-                btn.classList.add('btn-outline-success');
+                btn.classList.replace('btn-success', 'btn-outline-success');
                 btn.innerHTML = originalHtml;
                 btn.disabled = false;
             }, 1500);
         } else {
             alert("Error: " + res.error);
-            btn.innerHTML = originalHtml;
             btn.disabled = false;
+            btn.innerHTML = originalHtml;
         }
     } catch (e) {
         alert("Error red");
-        btn.innerHTML = originalHtml;
         btn.disabled = false;
+        btn.innerHTML = originalHtml;
     }
 }
 
-// ... (Resto de funciones: registrarPago, guardarLogistica, subirFotoReferencia, guardarEdicion, generarContrato, Helpers UI)
-// ... MANTÉN EL RESTO DEL CÓDIGO IGUAL QUE LA VERSIÓN ANTERIOR ...
-
-// PARA TU COMODIDAD, AGREGO LAS FUNCIONES DE PAGO QUE YA TENÍAS PARA QUE EL ARCHIVO ESTÉ COMPLETO Y NO TENGAS QUE PEGAR PARCHES:
+// =============================================================================
+// 3. PAGOS Y CUENTA ABIERTA
+// =============================================================================
 
 function previewVoucherName() {
     const input = document.getElementById('filePagoVoucher');
@@ -237,13 +249,7 @@ async function registrarPago() {
         return;
     }
 
-    let mensajeConfirm = `¿Confirmar pago de S/ ${monto.toFixed(2)}?`;
-    if (monto > (deudaActual + 0.01)) {
-        const excedente = (monto - deudaActual).toFixed(2);
-        mensajeConfirm = `⚠️ ALERTA DE SOBREPAGO\n\nEl monto (S/ ${monto.toFixed(2)}) supera la deuda actual (S/ ${deudaActual.toFixed(2)}).\n\nSe generará un SALDO A FAVOR de S/ ${excedente} para el cliente.\n\n¿Deseas continuar?`;
-    }
-
-    if(!confirm(mensajeConfirm)) return;
+    if(!confirm(`¿Confirmar pago de S/ ${monto.toFixed(2)}?`)) return;
 
     const btn = document.querySelector('#tab-pagos button.btn-success');
     const originalContent = '<i class="bi bi-check-circle-fill me-2"></i> CONFIRMAR PAGO';
@@ -257,13 +263,12 @@ async function registrarPago() {
     let base64 = null;
     let mimeType = null;
 
-    const readFile = (file) => new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.readAsDataURL(file);
-    });
-
     if(fileInput.files.length > 0) {
+        const readFile = (file) => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (e) => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
         const dataUrl = await readFile(fileInput.files[0]);
         base64 = dataUrl.split(',')[1];
         mimeType = fileInput.files[0].type;
@@ -283,7 +288,9 @@ async function registrarPago() {
         const res = await callAPI('finanzas', 'registrarPagoWeb', payload);
         if (res.success) {
             alert("✅ " + res.message);
+            // Recargar datos para ver el saldo actualizado (deuda 0)
             abrirGestionTicket(currentTicketID);
+            // Actualizar tablero principal por si cambió el estado
             if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
         } else {
             alert("⛔ Error: " + res.error);
@@ -295,6 +302,67 @@ async function registrarPago() {
         btn.innerHTML = originalContent;
     }
 }
+
+// =============================================================================
+// 4. EDICIÓN Y BLOQUEO POR DEUDA (CUENTA ABIERTA)
+// =============================================================================
+
+async function guardarEdicion() {
+    const nuevoEstado = document.getElementById('selGestionEstado').value;
+    const lblDeuda = document.getElementById('lblPagoDeuda');
+    const textoDeuda = lblDeuda ? lblDeuda.innerText.replace('S/ ', '').replace(/,/g,'') : '0';
+    const deuda = parseFloat(textoDeuda) || 0;
+
+    // --- REGLA DE ORO: BLOQUEO POR DEUDA ---
+    // Si intenta marcar como Entregado o Enviado y hay deuda, BLOQUEAR.
+    const estadosRestringidos = ['Entregado', 'Enviado'];
+    
+    if (estadosRestringidos.includes(nuevoEstado) && deuda > 0.50) { // Margen 0.50 céntimos
+        // 1. Alerta Visual (Animación en CSS)
+        const modalBody = document.querySelector('#modalGestionTicket .modal-body');
+        modalBody.classList.add('bloqueo-deuda');
+        
+        // 2. Mensaje Fuerte
+        alert(`⛔ ¡ALTO! CUENTA ABIERTA DETECTADA ⛔\n\nEl cliente "${currentClientData.nombre}" todavía debe S/ ${deuda.toFixed(2)}.\n\nEl sistema PROHÍBE cambiar el estado a "${nuevoEstado}" hasta que la deuda sea CERO.\n\nPor favor, registra el pago en la pestaña 'Pagos' primero.`);
+        
+        // 3. Quitar animación
+        setTimeout(() => modalBody.classList.remove('bloqueo-deuda'), 1000);
+        return; // Detener ejecución
+    }
+
+    if (!confirm("¿Actualizar datos del pedido?")) return;
+    
+    const usuario = JSON.parse(localStorage.getItem("erp_usuario"));
+    
+    const payload = {
+        id_ticket: currentTicketID,
+        usuario_rol: usuario ? usuario.rol : 'Anon',
+        estado: nuevoEstado,
+        id_vendedor: document.getElementById('selGestionVendedor').value,
+        tipo_evento: document.getElementById('selGestionTipoEvento').value,
+        turno: document.getElementById('selGestionTurno').value,
+        fecha_evento: document.getElementById('dateGestionEvento').value,
+        fecha_entrega: document.getElementById('dateGestionEntrega').value,
+        identidad: document.getElementById('txtGestionIdentidad').value,
+        texto_tematica: document.getElementById('txtGestionTematica').value,
+        observaciones: document.getElementById('txtGestionObs').value
+    };
+
+    try {
+        const res = await callAPI('ventas', 'editarDatosTicket', payload);
+        if (res.success) {
+            alert("✅ " + res.message);
+            // Recargar Dashboard para reflejar cambios de estado/color
+            if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
+        } else {
+            alert("⛔ Error: " + res.error);
+        }
+    } catch (e) { alert("Error de conexión."); }
+}
+
+// =============================================================================
+// 5. UTILIDADES UI Y LOGÍSTICA
+// =============================================================================
 
 function llenarSelect(idSelect, arrayDatos, valorSeleccionado) {
     const sel = document.getElementById(idSelect);
@@ -347,13 +415,54 @@ async function guardarLogistica() {
     try {
         const res = await callAPI('ventas', 'guardarLogisticaTicket', payload);
         if (res.success) {
-            alert("✅ Datos de entrega actualizados.");
+            alert("✅ Logística guardada. Costos actualizados.");
             abrirGestionTicket(currentTicketID); 
         } else {
-            alert("❌ Error: " + res.error);
+            alert("❌ " + res.error);
         }
     } catch (e) { alert("Error de conexión: " + e.message); }
-    finally { btn.disabled = false; btn.innerHTML = 'Guardar'; }
+    finally { btn.disabled = false; btn.innerHTML = 'Guardar Datos Delivery'; }
+}
+
+async function cambiarClienteTicket() {
+    const nuevoNombre = prompt("Ingresa el NOMBRE EXACTO del nuevo cliente (debe existir en el Directorio):");
+    if (!nuevoNombre) return;
+
+    // Buscar ID en el datalist (memoria caché rápida)
+    const datalist = document.getElementById('listaClientes');
+    let nuevoId = null;
+    
+    for (let i = 0; i < datalist.options.length; i++) {
+        if (datalist.options[i].value === nuevoNombre) {
+            // Asumiendo que guardamos el ID en un atributo data-id, si no, hay que buscar en window.clientesCache
+            // Buscaremos en window.clientesCache que cargó en ventas_arzuka.js
+            if(window.clientesCache) {
+                const c = window.clientesCache.find(cli => cli.nombre === nuevoNombre);
+                if(c) nuevoId = c.id;
+            }
+            break;
+        }
+    }
+
+    if (!nuevoId) {
+        alert("Cliente no encontrado en memoria local. Asegúrate de que el nombre sea exacto o recarga la página.");
+        return;
+    }
+
+    if(!confirm(`¿Reasignar el ticket ${currentTicketID} a ${nuevoNombre}?`)) return;
+
+    try {
+        const res = await callAPI('gestion', 'reasignarClienteTicket', { 
+            id_ticket: currentTicketID,
+            id_cliente: nuevoId
+        });
+        if(res.success) {
+            alert("✅ Cliente actualizado.");
+            abrirGestionTicket(currentTicketID);
+        } else {
+            alert("Error: " + res.error);
+        }
+    } catch(e) { alert("Error red"); }
 }
 
 function clickInputFoto() { document.getElementById('fileGestionFoto').click(); }
@@ -384,114 +493,25 @@ async function subirFotoSeleccionada() {
                 if (resData.success) renderizarGaleria(resData.data.multimedia);
             } else {
                 alert("❌ Error subiendo: " + res.error);
-                container.innerHTML = '<div class="text-danger text-center">Error al subir imagen.</div>';
             }
         } catch (e) { alert("Error red: " + e.message); }
         input.value = '';
     };
 }
 
-async function guardarEdicion() {
-    if (!confirm("¿Actualizar datos del pedido?")) return;
-    const usuario = JSON.parse(localStorage.getItem("erp_usuario"));
-    
-    const payload = {
-        id_ticket: currentTicketID,
-        usuario_rol: usuario ? usuario.rol : 'Anon',
-        estado: document.getElementById('selGestionEstado').value,
-        id_vendedor: document.getElementById('selGestionVendedor').value,
-        tipo_evento: document.getElementById('selGestionTipoEvento').value,
-        turno: document.getElementById('selGestionTurno').value,
-        fecha_evento: document.getElementById('dateGestionEvento').value,
-        fecha_entrega: document.getElementById('dateGestionEntrega').value,
-        identidad: document.getElementById('txtGestionIdentidad').value,
-        texto_tematica: document.getElementById('txtGestionTematica').value,
-        observaciones: document.getElementById('txtGestionObs').value
-    };
-
-    try {
-        const res = await callAPI('ventas', 'editarDatosTicket', payload);
-        if (res.success) {
-            alert("✅ " + res.message);
-        } else {
-            alert("⛔ Error: " + res.error);
-        }
-    } catch (e) { alert("Error de conexión."); }
-}
-
 async function generarContrato() {
-    const btns = document.querySelectorAll('#divContratoActions button, #divContratoLink button');
-    btns.forEach(b => { b.dataset.originalText = b.innerHTML; b.disabled = true; b.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...'; });
+    const btns = document.querySelectorAll('#divContratoActions button');
+    btns.forEach(b => { b.disabled = true; b.innerText = "Procesando..."; });
 
     try {
         const res = await callAPI('ventas', 'generarContrato', { id_ticket: currentTicketID });
         if (res.success) {
             document.getElementById('divContratoActions').classList.add('d-none');
-            const divLink = document.getElementById('divContratoLink');
-            divLink.classList.remove('d-none');
+            document.getElementById('divContratoLink').classList.remove('d-none');
             document.getElementById('linkContratoFinal').href = res.url;
-            alert(res.mensaje);
         } else {
             alert("❌ " + res.error);
         }
-    } catch (e) { alert("Error de conexión: " + e.message); }
-    finally {
-        btns.forEach(b => { b.disabled = false; if(b.dataset.originalText) b.innerHTML = b.dataset.originalText; });
-    }
-}
-// En js/gestion_tickets.js
-
-// ... (al final)
-
-async function cambiarClienteTicket() {
-    const nuevoNombre = prompt("Ingresa el NOMBRE EXACTO del nuevo cliente (debe existir en el Directorio):");
-    if (!nuevoNombre) return;
-
-    // Buscar ID en la caché de clientes (si está cargada) o necesitamos un buscador mejor.
-    // Para simplificar, buscaremos por nombre en la lista global de clientes si ya se cargó, 
-    // o haremos una llamada rápida.
-    
-    // TRUCO: Usaremos la lista del datalist #listaClientes que ya se carga en Nueva Venta
-    // Si no está cargada, alertamos.
-    
-    const datalist = document.getElementById('listaClientes');
-    let nuevoId = null;
-    
-    // Intentar encontrar el ID en las opciones del datalist
-    for (let i = 0; i < datalist.options.length; i++) {
-        if (datalist.options[i].value === nuevoNombre) {
-            nuevoId = datalist.options[i].getAttribute('data-id');
-            break;
-        }
-    }
-
-    if (!nuevoId) {
-        // Si no está en datalist, intentamos buscar en la base de datos via API (más seguro)
-        // O pedimos al usuario que vaya a "Nueva Venta" para refrescar la lista :P 
-        // Vamos a hacer una búsqueda rápida mejor:
-        
-        const confirmacion = confirm(`No encontré el ID de "${nuevoNombre}" en memoria rápida.\n\n¿Deseas buscar en la base de datos completa?`);
-        if(!confirmacion) return;
-        
-        // TODO: Implementar endpoint de búsqueda por nombre.
-        // Por ahora, exigimos que el cliente exista.
-        alert("Por favor, asegúrate de haber cargado la lista de clientes o que el nombre sea exacto.");
-        return;
-    }
-
-    if(!confirm(`¿Reasignar el ticket ${currentTicketID} a ${nuevoNombre}?`)) return;
-
-    try {
-        const res = await callAPI('gestion', 'reasignarClienteTicket', { 
-            id_ticket: currentTicketID,
-            id_cliente: nuevoId
-        });
-        
-        if(res.success) {
-            alert("✅ Cliente actualizado.");
-            abrirGestionTicket(currentTicketID); // Recargar
-        } else {
-            alert("Error: " + res.error);
-        }
-    } catch(e) { alert("Error red"); }
+    } catch (e) { alert("Error de conexión"); }
+    finally { btns.forEach(b => b.disabled = false); }
 }

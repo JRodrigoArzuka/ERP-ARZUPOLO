@@ -1,7 +1,7 @@
 /**
  * js/ventas_arzuka.js
- * Lógica del Dashboard Comercial: Filtros, Gráficos Dinámicos y Caché.
- * VERSIÓN FINAL CORREGIDA.
+ * Lógica del Dashboard Comercial: Filtros Avanzados, Gráficos y Colores.
+ * VERSIÓN FINAL.
  */
 
 let chartInstancia = null;
@@ -12,40 +12,43 @@ let filtrosCargados = false;
 // =============================================================================
 
 async function cargarVentasArzuka() {
-    // 1. Configurar fechas por defecto
+    // 1. Configurar fechas por defecto (Hoy)
     if (!document.getElementById('filtroFechaDesde').value) {
         const hoy = new Date().toISOString().split('T')[0];
         document.getElementById('filtroFechaDesde').value = hoy;
         document.getElementById('filtroFechaHasta').value = hoy;
     }
 
-    // 2. Cargar lista de vendedores (solo una vez)
+    // 2. Cargar listas maestras (solo la primera vez)
     if (!filtrosCargados) {
-        await cargarFiltroVendedores();
+        await cargarListasMaestrasFiltros();
         filtrosCargados = true;
     }
 
+    // 3. Construir Payload con TODOS los filtros
     const payload = {
         fechaDesde: document.getElementById('filtroFechaDesde').value,
         fechaHasta: document.getElementById('filtroFechaHasta').value,
-        vendedor: document.getElementById('filtroVendedor').value
+        vendedor: document.getElementById('filtroVendedor').value,
+        estado: document.getElementById('filtroEstado').value,
+        evento: document.getElementById('filtroEvento').value,
+        turno: document.getElementById('filtroTurno').value,
+        pago: document.getElementById('filtroPago').value
     };
 
     const tbody = document.getElementById('tablaVentasBody');
-    // Spinner solo si está vacío para evitar parpadeo
-    if(tbody.children.length <= 1) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Analizando datos...</td></tr>';
+    // Mostrar spinner solo si la tabla está vacía o tiene mensaje de error
+    if(tbody.children.length <= 1 || tbody.innerHTML.includes('Error')) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Filtrando datos...</td></tr>';
     }
 
     try {
-        // 3. LLAMADA CON CACHÉ Y CALLBACK
+        // 4. Llamada API (SWR)
         const res = await callAPI(
             'ventas', 
             'obtenerVentasFiltradas', 
             payload, 
-            // Callback: Se ejecuta si el servidor trae datos nuevos en 2do plano
             (datosFrescos) => {
-                console.log("✨ Actualizando vista con datos frescos...");
                 if(datosFrescos.success) actualizarDashboard(datosFrescos.ventas, datosFrescos.resumen);
             }
         );
@@ -62,21 +65,53 @@ async function cargarVentasArzuka() {
     }
 }
 
-async function cargarFiltroVendedores() {
+async function cargarListasMaestrasFiltros() {
     try {
-        const res = await callAPI('ventas', 'obtenerMaestrosVentas', {}, { useCache: true, ttl: 60 });
-        if (res.success && res.vendedores) {
-            const sel = document.getElementById('filtroVendedor');
-            const val = sel.value;
-            sel.innerHTML = '<option value="Todos">Todos los vendedores</option>';
-            res.vendedores.forEach(v => {
-                sel.innerHTML += `<option value="${v.nombre}">${v.nombre}</option>`;
-            });
-            sel.value = val;
-            
+        // Pedimos datos de configuración y usuarios
+        const res = await callAPI('ventas', 'obtenerMaestrosVentas', {}, { useCache: true, ttl: 300 });
+        
+        if (res.success) {
+            // A. Vendedores
+            const selV = document.getElementById('filtroVendedor');
+            const valV = selV.value; // Guardar selección actual
+            selV.innerHTML = '<option value="Todos">Todos los vendedores</option>';
+            if(res.vendedores) {
+                res.vendedores.forEach(v => selV.innerHTML += `<option value="${v.nombre}">${v.nombre}</option>`);
+            }
+            selV.value = valV;
+
+            // B. Estados (Manejo de JSON con Color)
+            const selE = document.getElementById('filtroEstado');
+            selE.innerHTML = '<option value="">Todos</option>';
+            if(res.config && res.config.Estado_Pedido) {
+                res.config.Estado_Pedido.forEach(item => {
+                    let nombre = item;
+                    // Intentamos parsear si viene como JSON
+                    try { if(item.trim().startsWith('{')) nombre = JSON.parse(item).nombre; } catch(e){}
+                    selE.innerHTML += `<option value="${nombre}">${nombre}</option>`;
+                });
+            }
+
+            // C. Otros Filtros Simples
+            llenarSelectSimple('filtroEvento', res.config.Tipo_Evento || []);
+            llenarSelectSimple('filtroTurno', res.config.Turno || []);
+            llenarSelectSimple('filtroPago', res.config.Metodo_Pago || []);
+
+            // Guardamos clientes en caché global para el modal de nueva venta
             if(res.clientes) window.clientesCache = res.clientes;
         }
-    } catch (e) { console.error("Error cargando vendedores", e); }
+    } catch (e) { console.error("Error cargando filtros", e); }
+}
+
+function llenarSelectSimple(idSelect, data) {
+    const sel = document.getElementById(idSelect);
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = `<option value="">Todos</option>`;
+    if(data) {
+        data.forEach(d => sel.innerHTML += `<option value="${d}">${d}</option>`);
+    }
+    sel.value = prev;
 }
 
 // =============================================================================
@@ -97,23 +132,33 @@ function actualizarDashboard(ventas, resumen) {
     tbody.innerHTML = '';
 
     if (ventas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">No se encontraron ventas.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">No se encontraron ventas con estos filtros.</td></tr>';
         renderizarGrafico([]);
         return;
     }
 
+    // Ordenar por fecha/hora descendente
     const ventasOrdenadas = [...ventas].sort((a, b) => new Date(b.fecha + 'T' + b.hora) - new Date(a.fecha + 'T' + a.hora));
 
     ventasOrdenadas.forEach(v => {
+        // Lógica de color para el estado
+        let badgeStyle = 'class="badge bg-light text-dark border"'; // Estilo por defecto
+        
+        if (v.color_estado) {
+            // Si el backend devuelve color, aplicamos estilo "tintado"
+            // Fondo semitransparente (hex + '20' es approx 12% opacidad) y borde sólido
+            badgeStyle = `style="background-color:${v.color_estado}15; color:${v.color_estado}; border:1px solid ${v.color_estado}40;" class="badge"`;
+        }
+
         const fila = `
             <tr>
                 <td class="fw-bold text-primary font-monospace">${v.ticket || '---'}</td>
                 <td>${v.fecha} <small class="text-muted">${v.hora}</small></td>
                 <td>${v.cliente || 'General'}</td>
                 <td class="text-end fw-bold">S/ ${parseFloat(v.total).toFixed(2)}</td>
-                <td><span class="badge bg-light text-dark border">${v.vendedor || 'N/A'}</span></td>
+                <td><span ${badgeStyle}>${v.estado}</span></td>
                 <td class="text-center">
-                    <button class="btn btn-sm btn-outline-secondary border-0" onclick="abrirGestionTicket('${v.ticket}')">
+                    <button class="btn btn-sm btn-outline-secondary border-0" onclick="abrirGestionTicket('${v.ticket}')" title="Gestionar">
                         <i class="bi bi-gear-fill"></i>
                     </button>
                 </td>
@@ -129,7 +174,6 @@ function renderizarGrafico(datos) {
     const ctx = document.getElementById('graficoVentas');
     if (!ctx) return;
 
-    // Destruir gráfico anterior
     if (chartInstancia) {
         chartInstancia.destroy();
         chartInstancia = null;
@@ -144,6 +188,7 @@ function renderizarGrafico(datos) {
     const dataMap = {};
 
     datos.forEach(v => {
+        // Agrupar por hora si es el mismo día, o por fecha si es rango
         const key = esMismoDia ? v.hora.substring(0, 2) + ':00' : v.fecha;
         if (!dataMap[key]) dataMap[key] = 0;
         dataMap[key] += parseFloat(v.total);
@@ -180,7 +225,7 @@ function renderizarGrafico(datos) {
 }
 
 // =============================================================================
-// 3. FUNCIONES AUXILIARES
+// 3. FUNCIONES AUXILIARES (Sincronización y Nueva Venta)
 // =============================================================================
 
 async function sincronizarLoyverse() {
@@ -188,16 +233,16 @@ async function sincronizarLoyverse() {
     const originalHTML = btn.innerHTML;
     
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sincronizando...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sync...';
     
     try {
-        if(typeof CacheSystem !== 'undefined') CacheSystem.clear(); // Limpiar caché
+        if(typeof CacheSystem !== 'undefined') CacheSystem.clear(); // Limpiar caché para ver lo nuevo
 
         const res = await callAPI('sincronizarLoyverse', 'sincronizarLoyverse');
         
         if (res.success) {
             alert(res.message);
-            cargarVentasArzuka(); 
+            cargarVentasArzuka(); // Recargar tabla
         } else {
             alert("⚠️ " + res.error);
         }
@@ -222,10 +267,7 @@ async function abrirModalNuevaVenta() {
     
     agregarLineaProducto();
 
-    if (!window.clientesCache || window.clientesCache.length === 0) {
-        await cargarFiltroVendedores();
-    }
-    
+    // Llenar datalist de clientes
     const dl = document.getElementById('listaClientes');
     dl.innerHTML = '';
     if(window.clientesCache) {
@@ -237,6 +279,7 @@ async function abrirModalNuevaVenta() {
     }
 }
 
+// ... (El resto de funciones de "Nueva Venta" - agregarLineaProducto, calcRow, guardarVenta - se mantienen igual que en tu versión original, ya que no afectan la lógica de filtros ni colores) ...
 function agregarLineaProducto() {
     const tbody = document.getElementById('bodyTablaVentas');
     const id = Date.now();

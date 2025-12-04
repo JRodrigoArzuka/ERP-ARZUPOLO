@@ -146,9 +146,9 @@ body {
     letter-spacing: 0.5px;
 }
 
-/* --- ESTILOS DE LOGIN (NUEVO) --- */
+/* --- ESTILOS DE LOGIN --- */
 #login-overlay {
-    backdrop-filter: blur(5px); /* Efecto borroso */
+    backdrop-filter: blur(5px);
 }
 
 #login-overlay .card {
@@ -159,6 +159,37 @@ body {
 #login-overlay input:focus {
     box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
     border-color: var(--primary-color);
+}
+
+/* --- NUEVO: ALERTA DE DEUDA (Efecto Vibración Rojo) --- */
+@keyframes shake {
+  0% { transform: translate(1px, 1px) rotate(0deg); }
+  10% { transform: translate(-1px, -2px) rotate(-1deg); }
+  20% { transform: translate(-3px, 0px) rotate(1deg); }
+  30% { transform: translate(3px, 2px) rotate(0deg); }
+  40% { transform: translate(1px, -1px) rotate(1deg); }
+  50% { transform: translate(-1px, 2px) rotate(-1deg); }
+  60% { transform: translate(-3px, 1px) rotate(0deg); }
+  70% { transform: translate(3px, 1px) rotate(-1deg); }
+  80% { transform: translate(-1px, -1px) rotate(1deg); }
+  90% { transform: translate(1px, 2px) rotate(0deg); }
+  100% { transform: translate(1px, -2px) rotate(-1deg); }
+}
+
+.bloqueo-deuda {
+    animation: shake 0.5s;
+    background-color: #ffebee !important; /* Rojo muy suave */
+    border: 2px solid #dc3545 !important; /* Borde rojo alerta */
+}
+
+/* --- NUEVO: Indicadores de Color para Estados --- */
+.dot-estado {
+    height: 12px;
+    width: 12px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    border: 1px solid rgba(0,0,0,0.1);
 }
 
 /* --- RESPONSIVE (Móvil) --- */
@@ -191,9 +222,9 @@ body {
         font-size: 0.85rem; 
     }
     
-    /* Ajuste en móviles para el padding */
     #main-area { padding: 15px; }
 }
+
 /* --- ESTILOS DE IMPRESIÓN (TICKET) --- */
 @media print {
     body * {
@@ -212,7 +243,6 @@ body {
         background: white;
         color: black;
     }
-    /* Ocultar elementos del sistema */
     #sidebar, #login-overlay, .modal-backdrop, .modal {
         display: none !important;
     }
