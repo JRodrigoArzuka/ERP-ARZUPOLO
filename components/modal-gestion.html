@@ -121,18 +121,16 @@
                             </div>
                         </div>
                         <div id="galeriaFotos" class="row g-3">
-                            <!-- Aquí se inyectan las fotos -->
                             <div class="col-12 text-center text-muted py-5">No hay fotos cargadas.</div>
                         </div>
                     </div>
 
-                    <!-- TAB 4: EDITAR (CON REASIGNACIÓN DE CLIENTE) -->
+                    <!-- TAB 4: EDITAR (CON REASIGNACIÓN) -->
                     <div class="tab-pane fade" id="tab-editar">
                         <div class="alert alert-info small py-2 mb-4">
                             <i class="bi bi-info-circle me-1"></i> Solo personal autorizado puede modificar estos datos críticos.
                         </div>
                         
-                        <!-- REASIGNACIÓN DE CLIENTE (NUEVO) -->
                         <div class="card border-primary mb-4">
                             <div class="card-body bg-light py-2">
                                 <div class="row align-items-center">
@@ -153,14 +151,7 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label class="small fw-bold">Estado Actual *</label>
-                                <select id="selGestionEstado" class="form-select border-primary">
-                                    <option value="Pendiente">Pendiente</option>
-                                    <option value="Pagado">Pagado</option>
-                                    <option value="En Produccion">En Producción</option>
-                                    <option value="Listo para Entrega">Listo para Entrega</option>
-                                    <option value="Entregado">Entregado</option>
-                                    <option value="Anulado">Anulado</option>
-                                </select>
+                                <select id="selGestionEstado" class="form-select border-primary"></select>
                             </div>
                             <div class="col-md-6">
                                 <label class="small fw-bold">Vendedor Responsable *</label>
@@ -214,17 +205,34 @@
                         </div>
                     </div>
 
-                    <!-- TAB 5: PAGOS -->
+                    <!-- TAB 5: PAGOS (REDISEÑADO) -->
                     <div class="tab-pane fade" id="tab-pagos">
                         <div class="row justify-content-center">
-                            <div class="col-md-6">
-                                <div class="alert alert-warning text-center border-2 border-warning mb-4">
-                                    <small class="text-muted text-uppercase fw-bold">Deuda Actual</small>
-                                    <h2 class="fw-bold my-1 text-dark" id="lblPagoDeuda">S/ 0.00</h2>
+                            <div class="col-md-8">
+                                
+                                <!-- DASHBOARD SALDOS -->
+                                <div class="row g-3 mb-4">
+                                    <div class="col-6">
+                                        <div class="card bg-success bg-opacity-10 border-success text-center h-100">
+                                            <div class="card-body py-3">
+                                                <small class="text-success fw-bold text-uppercase" style="letter-spacing: 1px;">Saldo Abonado</small>
+                                                <h2 class="m-0 text-success fw-bold mt-1" id="lblPagoAbonado">S/ 0.00</h2>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="card bg-danger bg-opacity-10 border-danger text-center h-100">
+                                            <div class="card-body py-3">
+                                                <small class="text-danger fw-bold text-uppercase" style="letter-spacing: 1px;">Saldo Pendiente</small>
+                                                <h2 class="m-0 text-danger fw-bold mt-1" id="lblPagoPendiente">S/ 0.00</h2>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="card border-0 shadow-sm bg-light">
-                                    <div class="card-body p-4">
+                                <!-- FORMULARIO REGISTRO -->
+                                <div class="card border-0 shadow-sm bg-light mb-4">
+                                    <div class="card-body p-3">
                                         <h6 class="fw-bold text-muted mb-3 border-bottom pb-2">Registrar Nuevo Pago</h6>
                                         
                                         <div class="mb-3">
@@ -262,6 +270,26 @@
                                         </button>
                                     </div>
                                 </div>
+
+                                <!-- HISTORIAL -->
+                                <h6 class="fw-bold text-muted small"><i class="bi bi-clock-history"></i> Historial de Transacciones</h6>
+                                <div class="table-responsive bg-white border rounded">
+                                    <table class="table table-sm table-hover mb-0 align-middle">
+                                        <thead class="table-light small text-muted">
+                                            <tr>
+                                                <th>Fecha</th>
+                                                <th>Método</th>
+                                                <th>Ref.</th>
+                                                <th>Usuario</th>
+                                                <th class="text-end">Monto</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tblHistorialPagosBody" class="small">
+                                            <tr><td colspan="5" class="text-center text-muted py-3">Cargando...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
                             </div>
                         </div>
                     </div>
@@ -271,17 +299,13 @@
                         <i class="bi bi-file-earmark-pdf display-1 text-danger"></i>
                         <h5 class="mt-3 mb-3">Contrato de Servicio</h5>
                         <p class="text-muted mb-4 mx-auto" style="max-width: 500px;">
-                            Genera un PDF con todos los detalles actuales del pedido (cliente, productos, fechas, saldo) listo para enviar.
+                            Genera un PDF con todos los detalles actuales del pedido.
                         </p>
-                        
-                        <!-- Acción Inicial -->
                         <div id="divContratoActions">
                             <button class="btn btn-outline-danger btn-lg px-5 fw-bold" onclick="generarContrato()">
                                 <i class="bi bi-gear-wide-connected me-2"></i> Generar PDF
                             </button>
                         </div>
-                        
-                        <!-- Acción Post-Generación -->
                         <div id="divContratoLink" class="d-none">
                             <div class="alert alert-success d-inline-block px-4 py-2 mb-3">
                                 <i class="bi bi-check-circle-fill me-2"></i> Documento disponible
@@ -292,7 +316,7 @@
                             </a>
                             <div class="d-block">
                                 <button class="btn btn-link text-muted text-decoration-none small" onclick="generarContrato()">
-                                    <i class="bi bi-arrow-repeat"></i> Regenerar / Actualizar Datos
+                                    <i class="bi bi-arrow-repeat"></i> Regenerar
                                 </button>
                             </div>
                         </div>

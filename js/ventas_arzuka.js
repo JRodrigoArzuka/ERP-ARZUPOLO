@@ -1,7 +1,7 @@
 /**
  * js/ventas_arzuka.js
- * Lógica del Dashboard Comercial: Filtros Avanzados, Gráficos y Colores.
- * VERSIÓN FINAL.
+ * Lógica del Dashboard Comercial.
+ * ACTUALIZADO: Filtro Mes Actual por defecto, Botón "Hoy" y Colores.
  */
 
 let chartInstancia = null;
@@ -12,11 +12,19 @@ let filtrosCargados = false;
 // =============================================================================
 
 async function cargarVentasArzuka() {
-    // 1. Configurar fechas por defecto (Hoy)
+    // 1. Configurar fechas por defecto (MES ACTUAL) si están vacías
     if (!document.getElementById('filtroFechaDesde').value) {
-        const hoy = new Date().toISOString().split('T')[0];
-        document.getElementById('filtroFechaDesde').value = hoy;
-        document.getElementById('filtroFechaHasta').value = hoy;
+        const date = new Date();
+        // Primer día del mes
+        const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+        // Último día del mes
+        const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        
+        // Helper para formato YYYY-MM-DD
+        const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        
+        document.getElementById('filtroFechaDesde').value = fmt(firstDay);
+        document.getElementById('filtroFechaHasta').value = fmt(lastDay);
     }
 
     // 2. Cargar listas maestras (solo la primera vez)
@@ -25,7 +33,7 @@ async function cargarVentasArzuka() {
         filtrosCargados = true;
     }
 
-    // 3. Construir Payload con TODOS los filtros
+    // 3. Construir Payload
     const payload = {
         fechaDesde: document.getElementById('filtroFechaDesde').value,
         fechaHasta: document.getElementById('filtroFechaHasta').value,
@@ -37,13 +45,12 @@ async function cargarVentasArzuka() {
     };
 
     const tbody = document.getElementById('tablaVentasBody');
-    // Mostrar spinner solo si la tabla está vacía o tiene mensaje de error
+    // Spinner suave
     if(tbody.children.length <= 1 || tbody.innerHTML.includes('Error')) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Filtrando datos...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div><br>Cargando mes actual...</td></tr>';
     }
 
     try {
-        // 4. Llamada API (SWR)
         const res = await callAPI(
             'ventas', 
             'obtenerVentasFiltradas', 
@@ -65,42 +72,55 @@ async function cargarVentasArzuka() {
     }
 }
 
+// NUEVA FUNCIÓN: Botón "Entregas Hoy"
+function filtrarEntregasHoy() {
+    const hoy = new Date();
+    const fmt = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    const hoyStr = fmt(hoy);
+    
+    // Setear fechas a HOY
+    document.getElementById('filtroFechaDesde').value = hoyStr;
+    document.getElementById('filtroFechaHasta').value = hoyStr;
+    
+    // Limpiar otros filtros para ver todo lo de hoy
+    document.getElementById('filtroEstado').value = '';
+    
+    // Recargar
+    cargarVentasArzuka();
+}
+
 async function cargarListasMaestrasFiltros() {
     try {
-        // Pedimos datos de configuración y usuarios
         const res = await callAPI('ventas', 'obtenerMaestrosVentas', {}, { useCache: true, ttl: 300 });
-        
         if (res.success) {
             // A. Vendedores
             const selV = document.getElementById('filtroVendedor');
-            const valV = selV.value; // Guardar selección actual
+            const valV = selV.value;
             selV.innerHTML = '<option value="Todos">Todos los vendedores</option>';
             if(res.vendedores) {
                 res.vendedores.forEach(v => selV.innerHTML += `<option value="${v.nombre}">${v.nombre}</option>`);
             }
             selV.value = valV;
 
-            // B. Estados (Manejo de JSON con Color)
+            // B. Estados (Con soporte de color JSON)
             const selE = document.getElementById('filtroEstado');
             selE.innerHTML = '<option value="">Todos</option>';
             if(res.config && res.config.Estado_Pedido) {
                 res.config.Estado_Pedido.forEach(item => {
                     let nombre = item;
-                    // Intentamos parsear si viene como JSON
                     try { if(item.trim().startsWith('{')) nombre = JSON.parse(item).nombre; } catch(e){}
                     selE.innerHTML += `<option value="${nombre}">${nombre}</option>`;
                 });
             }
 
-            // C. Otros Filtros Simples
+            // C. Otros Filtros
             llenarSelectSimple('filtroEvento', res.config.Tipo_Evento || []);
             llenarSelectSimple('filtroTurno', res.config.Turno || []);
             llenarSelectSimple('filtroPago', res.config.Metodo_Pago || []);
 
-            // Guardamos clientes en caché global para el modal de nueva venta
             if(res.clientes) window.clientesCache = res.clientes;
         }
-    } catch (e) { console.error("Error cargando filtros", e); }
+    } catch (e) { console.error("Error filtros", e); }
 }
 
 function llenarSelectSimple(idSelect, data) {
@@ -108,9 +128,7 @@ function llenarSelectSimple(idSelect, data) {
     if(!sel) return;
     const prev = sel.value;
     sel.innerHTML = `<option value="">Todos</option>`;
-    if(data) {
-        data.forEach(d => sel.innerHTML += `<option value="${d}">${d}</option>`);
-    }
+    if(data) data.forEach(d => sel.innerHTML += `<option value="${d}">${d}</option>`);
     sel.value = prev;
 }
 
@@ -132,22 +150,21 @@ function actualizarDashboard(ventas, resumen) {
     tbody.innerHTML = '';
 
     if (ventas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">No se encontraron ventas con estos filtros.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-5">No se encontraron ventas en este periodo.</td></tr>';
         renderizarGrafico([]);
         return;
     }
 
-    // Ordenar por fecha/hora descendente
     const ventasOrdenadas = [...ventas].sort((a, b) => new Date(b.fecha + 'T' + b.hora) - new Date(a.fecha + 'T' + a.hora));
 
     ventasOrdenadas.forEach(v => {
-        // Lógica de color para el estado
-        let badgeStyle = 'class="badge bg-light text-dark border"'; // Estilo por defecto
+        // LÓGICA DE COLOR (Background tintado + Borde)
+        let badgeStyle = 'class="badge bg-light text-dark border"'; 
         
         if (v.color_estado) {
-            // Si el backend devuelve color, aplicamos estilo "tintado"
-            // Fondo semitransparente (hex + '20' es approx 12% opacidad) y borde sólido
-            badgeStyle = `style="background-color:${v.color_estado}15; color:${v.color_estado}; border:1px solid ${v.color_estado}40;" class="badge"`;
+            // Convertir Hex a RGB simple o usar opacidad CSS
+            // Usamos un fondo muy suave (10% opacidad) y texto del color fuerte
+            badgeStyle = `style="background-color:${v.color_estado}15; color:${v.color_estado}; border:1px solid ${v.color_estado}60;" class="badge"`;
         }
 
         const fila = `
@@ -188,7 +205,6 @@ function renderizarGrafico(datos) {
     const dataMap = {};
 
     datos.forEach(v => {
-        // Agrupar por hora si es el mismo día, o por fecha si es rango
         const key = esMismoDia ? v.hora.substring(0, 2) + ':00' : v.fecha;
         if (!dataMap[key]) dataMap[key] = 0;
         dataMap[key] += parseFloat(v.total);
@@ -224,34 +240,20 @@ function renderizarGrafico(datos) {
     });
 }
 
-// =============================================================================
-// 3. FUNCIONES AUXILIARES (Sincronización y Nueva Venta)
-// =============================================================================
+/* ... (Las funciones de Sincronización y Nueva Venta se mantienen igual, no es necesario reenviarlas si no cambiaron, pero para copiar y pegar completo, las incluyo abajo) ... */
 
 async function sincronizarLoyverse() {
     const btn = document.querySelector('button[onclick="sincronizarLoyverse()"]');
     const originalHTML = btn.innerHTML;
-    
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sync...';
-    
     try {
-        if(typeof CacheSystem !== 'undefined') CacheSystem.clear(); // Limpiar caché para ver lo nuevo
-
+        if(typeof CacheSystem !== 'undefined') CacheSystem.clear();
         const res = await callAPI('sincronizarLoyverse', 'sincronizarLoyverse');
-        
-        if (res.success) {
-            alert(res.message);
-            cargarVentasArzuka(); // Recargar tabla
-        } else {
-            alert("⚠️ " + res.error);
-        }
-    } catch (e) {
-        alert("Error de conexión.");
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = originalHTML;
-    }
+        if (res.success) { alert(res.message); cargarVentasArzuka(); } 
+        else { alert("⚠️ " + res.error); }
+    } catch (e) { alert("Error conexión."); } 
+    finally { btn.disabled = false; btn.innerHTML = originalHTML; }
 }
 
 async function abrirModalNuevaVenta() {
@@ -259,15 +261,10 @@ async function abrirModalNuevaVenta() {
     document.getElementById('bodyTablaVentas').innerHTML = '';
     document.getElementById('lblTotalVenta').innerText = '0.00';
     document.getElementById('lblSaldoPendiente').innerText = '0.00';
-    
     document.getElementById('dateEntrega').value = new Date().toISOString().split('T')[0];
-    
     const modal = new bootstrap.Modal(document.getElementById('modalNuevaVenta'));
     modal.show();
-    
     agregarLineaProducto();
-
-    // Llenar datalist de clientes
     const dl = document.getElementById('listaClientes');
     dl.innerHTML = '';
     if(window.clientesCache) {
@@ -279,7 +276,6 @@ async function abrirModalNuevaVenta() {
     }
 }
 
-// ... (El resto de funciones de "Nueva Venta" - agregarLineaProducto, calcRow, guardarVenta - se mantienen igual que en tu versión original, ya que no afectan la lógica de filtros ni colores) ...
 function agregarLineaProducto() {
     const tbody = document.getElementById('bodyTablaVentas');
     const id = Date.now();
@@ -320,7 +316,6 @@ function calcularSaldo() {
 async function guardarVenta() {
     const cliente = document.getElementById('txtClienteBuscar').value;
     if(!cliente) return alert("Falta cliente");
-    
     const items = [];
     document.querySelectorAll('#bodyTablaVentas tr').forEach(r => {
         const nom = r.querySelector('.desc').value;
@@ -329,52 +324,25 @@ async function guardarVenta() {
         const sub = parseFloat(r.querySelector('.subtotal').innerText);
         if(nom && pre) items.push({ nombre: nom, cantidad: cant, precio_unitario: pre, subtotal: sub });
     });
-    
     if(items.length === 0) return alert("Agrega productos");
-
     const btn = document.querySelector('#modalNuevaVenta .btn-success');
     btn.disabled = true; btn.innerText = "Guardando...";
-
     const clienteObj = window.clientesCache ? window.clientesCache.find(c => c.nombre === cliente) : null;
     const idCliente = clienteObj ? clienteObj.id : ('NUEVO-' + Date.now());
-
     const payload = {
-        cabecera: { 
-            id_cliente: idCliente, 
-            nombre_cliente: cliente, 
-            id_vendedor: 'WEB', 
-            observaciones: document.getElementById('txtObservaciones').value 
-        },
-        totales: { 
-            total_venta: parseFloat(document.getElementById('lblTotalVenta').innerText), 
-            saldo_pendiente: parseFloat(document.getElementById('lblSaldoPendiente').innerText) 
-        },
-        evento: { 
-            tipo: document.getElementById('selTipoEvento').value, 
-            fecha: document.getElementById('dateEntrega').value, 
-            turno: '' 
-        },
-        entrega: { 
-            es_delivery: document.getElementById('chkDelivery').checked,
-            direccion: document.getElementById('txtDireccion').value,
-            referencia: document.getElementById('txtReferencia').value,
-            persona_recibe: cliente,
-            celular_contacto: ''
-        },
+        cabecera: { id_cliente: idCliente, nombre_cliente: cliente, id_vendedor: 'WEB', observaciones: document.getElementById('txtObservaciones').value },
+        totales: { total_venta: parseFloat(document.getElementById('lblTotalVenta').innerText), saldo_pendiente: parseFloat(document.getElementById('lblSaldoPendiente').innerText) },
+        evento: { tipo: document.getElementById('selTipoEvento').value, fecha: document.getElementById('dateEntrega').value, turno: '' },
+        entrega: { es_delivery: document.getElementById('chkDelivery').checked, direccion: document.getElementById('txtDireccion').value, referencia: document.getElementById('txtReferencia').value, persona_recibe: cliente, celular_contacto: '' },
         detalle: items
     };
-    
     try {
         const res = await callAPI('ventas', 'registrarVenta', payload);
         if(res.success) {
             alert("✅ Venta registrada: " + res.data.id_ticket);
             bootstrap.Modal.getInstance(document.getElementById('modalNuevaVenta')).hide();
             cargarVentasArzuka();
-        } else {
-            alert("Error: " + res.error);
-        }
+        } else { alert("Error: " + res.error); }
     } catch(e) { alert(e); } 
-    finally { 
-        btn.disabled = false; btn.innerText = "REGISTRAR"; 
-    }
+    finally { btn.disabled = false; btn.innerText = "REGISTRAR"; }
 }

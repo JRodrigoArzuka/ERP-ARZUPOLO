@@ -1,7 +1,7 @@
 /**
  * js/gestion_tickets.js
  * Lógica del Frontend para la Super Ventana de Gestión.
- * VERSIÓN FINAL: Implementación de "Cuenta Abierta" y Bloqueo por Deuda.
+ * VERSIÓN FINAL: Historial de Pagos y Saldos Calculados.
  */
 
 let currentTicketID = null;
@@ -18,9 +18,12 @@ async function abrirGestionTicket(idTicket) {
     
     // Reset UI
     document.getElementById('lblGestionTicketID').innerText = idTicket;
-    document.getElementById('tblGestionProductos').innerHTML = '<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div> Cargando...</td></tr>';
     
-    ['lblResumenSubtotal', 'lblResumenDelivery', 'lblResumenTotal', 'lblResumenPendiente', 'lblPagoDeuda'].forEach(id => {
+    // Spinners de carga
+    document.getElementById('tblGestionProductos').innerHTML = '<tr><td colspan="3" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary"></div></td></tr>';
+    document.getElementById('tblHistorialPagosBody').innerHTML = '<tr><td colspan="5" class="text-center py-3"><div class="spinner-border spinner-border-sm text-secondary"></div></td></tr>';
+    
+    ['lblResumenSubtotal', 'lblResumenDelivery', 'lblResumenTotal', 'lblResumenPendiente', 'lblPagoAbonado', 'lblPagoPendiente'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.innerText = '...';
     });
@@ -64,28 +67,52 @@ async function abrirGestionTicket(idTicket) {
             const cab = data.cabecera;
             const log = data.logistica;
             const listas = data.listas; 
+            const pagos = data.pagos || [];
 
             currentClientData = { nombre: cab.cliente_nombre || '', celular: cab.cliente_celular || '' };
             
-            // Mostrar nombre cliente en tab editar (Nuevo requerimiento visual)
+            // Nombre Cliente en Editar
             const txtCliNom = document.getElementById('txtGestionClienteNombre');
             if(txtCliNom) txtCliNom.value = cab.cliente_nombre || 'Desconocido';
 
-            // Cálculos Financieros
+            // --- CÁLCULOS FINANCIEROS ---
             const total = Number(cab.total || 0);
             const delivery = Number(cab.costo_delivery || 0);
-            const saldo = Number(cab.saldo || 0);
+            const abonado = Number(cab.total_abonado || 0);
+            const pendiente = Number(cab.saldo_calculado || 0); // Usamos el calculado
             const subtotal = total - delivery;
 
+            // Tab Resumen
             document.getElementById('lblResumenSubtotal').innerText = subtotal.toFixed(2);
             document.getElementById('lblResumenDelivery').innerText = delivery.toFixed(2);
             document.getElementById('lblResumenTotal').innerText = total.toFixed(2);
-            document.getElementById('lblResumenPendiente').innerText = saldo.toFixed(2);
+            document.getElementById('lblResumenPendiente').innerText = pendiente.toFixed(2);
             
-            // Sección Pagos
-            document.getElementById('lblPagoDeuda').innerText = 'S/ ' + saldo.toFixed(2);
-            // Sugerir monto total si hay deuda
-            document.getElementById('txtPagoMonto').value = saldo > 0 ? saldo : ''; 
+            // Tab Pagos (NUEVO DISEÑO)
+            document.getElementById('lblPagoAbonado').innerText = 'S/ ' + abonado.toFixed(2);
+            document.getElementById('lblPagoPendiente').innerText = 'S/ ' + pendiente.toFixed(2);
+            
+            // Sugerir monto a pagar
+            document.getElementById('txtPagoMonto').value = pendiente > 0 ? pendiente : ''; 
+
+            // --- TABLA HISTORIAL PAGOS ---
+            const tblPagos = document.getElementById('tblHistorialPagosBody');
+            tblPagos.innerHTML = '';
+            if (pagos.length > 0) {
+                pagos.forEach(p => {
+                    tblPagos.innerHTML += `
+                        <tr>
+                            <td class="small">${p.fecha}</td>
+                            <td><span class="badge bg-light text-dark border">${p.metodo}</span></td>
+                            <td class="small font-monospace">${p.operacion || '-'}</td>
+                            <td class="small text-muted">${p.usuario || 'Sys'}</td>
+                            <td class="text-end fw-bold text-success">S/ ${parseFloat(p.monto).toFixed(2)}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                tblPagos.innerHTML = '<tr><td colspan="5" class="text-center text-muted fst-italic py-3">Sin pagos registrados.</td></tr>';
+            }
 
             // Logística
             document.getElementById('swGestionDelivery').checked = log.es_delivery;
@@ -100,14 +127,12 @@ async function abrirGestionTicket(idTicket) {
             // Galería
             renderizarGaleria(data.multimedia);
 
-            // Selectores (Listas Maestras)
+            // Selectores
             llenarSelect('selGestionVendedor', listas.vendedores, cab.id_vendedor);
             llenarSelectSimple('selGestionTipoEvento', listas.tiposEvento, cab.tipo_evento);
             
-            // Estado (Si la lista de estados viene del backend, la usamos, sino hardcode)
-            // Aquí asumimos hardcode standard o carga previa, pero usamos el valor actual
             const selEst = document.getElementById('selGestionEstado');
-            if(selEst.options.length <= 1) { // Si está vacío salvo el default
+            if(selEst.options.length <= 1) { 
                  const estadosDefault = ["Nuevo Pedido", "Pendiente de Envio", "Pendiente Aprobación", "Aprobado", "En Producción", "Producto Listo", "Enviado", "Entregado", "Anulado", "Registro de Anulacion", "Pendiente de Pago"];
                  selEst.innerHTML = '';
                  estadosDefault.forEach(e => selEst.innerHTML += `<option value="${e}">${e}</option>`);
@@ -146,7 +171,7 @@ async function abrirGestionTicket(idTicket) {
 }
 
 // =============================================================================
-// 2. LÓGICA DE FOTOS (VISUALIZACIÓN Y EDICIÓN)
+// 2. LÓGICA DE FOTOS
 // =============================================================================
 
 function renderizarGaleria(fotos) {
@@ -159,32 +184,24 @@ function renderizarGaleria(fotos) {
     }
 
     fotos.forEach((f, index) => {
-        // TRUCO: Convertir URL de descarga a URL de miniatura
         let imgUrl = f.url;
         if (imgUrl.includes('drive.google.com') && imgUrl.includes('id=')) {
             const idMatch = imgUrl.match(/id=([a-zA-Z0-9_-]+)/);
-            if (idMatch) {
-                imgUrl = `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w800`;
-            }
+            if (idMatch) imgUrl = `https://drive.google.com/thumbnail?id=${idMatch[1]}&sz=w800`;
         }
 
         container.innerHTML += `
             <div class="col-6 col-md-4 col-lg-3">
                 <div class="card h-100 shadow-sm border">
                     <div style="height: 160px; overflow: hidden; position: relative;" class="bg-light d-flex align-items-center justify-content-center cursor-pointer" onclick="window.open('${f.url}', '_blank')">
-                        <img src="${imgUrl}" class="w-100 h-100" style="object-fit: cover;" 
-                             onerror="this.src='https://via.placeholder.com/150?text=Error+Carga'; this.title='Error cargando imagen';">
-                        <div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-50 text-white text-center small py-1">
-                            <i class="bi bi-zoom-in"></i> Ver Original
-                        </div>
+                        <img src="${imgUrl}" class="w-100 h-100" style="object-fit: cover;" onerror="this.src='https://via.placeholder.com/150?text=Error';">
+                        <div class="position-absolute bottom-0 start-0 w-100 bg-dark bg-opacity-50 text-white text-center small py-1">Ver Original</div>
                     </div>
                     <div class="card-body p-2">
                         <textarea class="form-control form-control-sm mb-2" id="comment_${index}" rows="2" style="font-size: 0.8rem;">${f.comentario || ''}</textarea>
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted" style="font-size: 0.65rem;">${f.fecha || ''}</small>
-                            <button class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 0.75rem;" onclick="guardarComentarioFoto('${f.url}', 'comment_${index}')">
-                                <i class="bi bi-check-lg"></i> Guardar
-                            </button>
+                            <button class="btn btn-sm btn-outline-success py-0 px-2" style="font-size: 0.75rem;" onclick="guardarComentarioFoto('${f.url}', 'comment_${index}')"><i class="bi bi-check-lg"></i> Guardar</button>
                         </div>
                     </div>
                 </div>
@@ -195,35 +212,13 @@ function renderizarGaleria(fotos) {
 async function guardarComentarioFoto(urlOriginal, inputId) {
     const comentario = document.getElementById(inputId).value;
     const btn = document.querySelector(`button[onclick*="${inputId}"]`);
-    const originalHtml = btn.innerHTML;
-
-    btn.disabled = true;
-    btn.innerHTML = '...';
-
+    btn.disabled = true; btn.innerHTML = '...';
     try {
-        const res = await callAPI('ventas', 'actualizarComentarioFoto', { 
-            url: urlOriginal, 
-            comentario: comentario 
-        });
-
-        if (res.success) {
-            btn.classList.replace('btn-outline-success', 'btn-success');
-            btn.innerHTML = '<i class="bi bi-check"></i>';
-            setTimeout(() => {
-                btn.classList.replace('btn-success', 'btn-outline-success');
-                btn.innerHTML = originalHtml;
-                btn.disabled = false;
-            }, 1500);
-        } else {
-            alert("Error: " + res.error);
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
-        }
-    } catch (e) {
-        alert("Error red");
-        btn.disabled = false;
-        btn.innerHTML = originalHtml;
-    }
+        await callAPI('ventas', 'actualizarComentarioFoto', { url: urlOriginal, comentario: comentario });
+        btn.classList.replace('btn-outline-success', 'btn-success');
+        btn.innerHTML = '<i class="bi bi-check"></i>';
+        setTimeout(() => { btn.classList.replace('btn-success', 'btn-outline-success'); btn.disabled = false; }, 1500);
+    } catch (e) { alert("Error red"); btn.disabled = false; }
 }
 
 // =============================================================================
@@ -240,22 +235,26 @@ function previewVoucherName() {
 async function registrarPago() {
     const inputMonto = document.getElementById('txtPagoMonto');
     const monto = parseFloat(inputMonto.value);
-    const lblDeuda = document.getElementById('lblPagoDeuda');
-    const textoDeuda = lblDeuda ? lblDeuda.innerText.replace('S/ ', '').trim() : '0';
-    const deudaActual = parseFloat(textoDeuda) || 0;
+    // Leemos el saldo pendiente del label actualizado
+    const lblPend = document.getElementById('lblPagoPendiente');
+    const textoPend = lblPend ? lblPend.innerText.replace('S/ ', '').trim() : '0';
+    const pendienteActual = parseFloat(textoPend) || 0;
 
     if(!monto || monto <= 0) {
         alert("⚠️ Por favor ingresa un monto válido.");
         return;
     }
 
-    if(!confirm(`¿Confirmar pago de S/ ${monto.toFixed(2)}?`)) return;
+    // Alerta de Sobrepago
+    let msgConfirm = `¿Confirmar pago de S/ ${monto.toFixed(2)}?`;
+    if (monto > (pendienteActual + 0.05)) {
+        msgConfirm = `⚠️ ALERTA: El pago excede la deuda actual (S/ ${pendienteActual.toFixed(2)}).\n¿Deseas continuar y generar saldo a favor?`;
+    }
+
+    if(!confirm(msgConfirm)) return;
 
     const btn = document.querySelector('#tab-pagos button.btn-success');
-    const originalContent = '<i class="bi bi-check-circle-fill me-2"></i> CONFIRMAR PAGO';
-    
-    btn.disabled = true; 
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
+    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Procesando...';
 
     const usuario = JSON.parse(localStorage.getItem("erp_usuario"));
     const fileInput = document.getElementById('filePagoVoucher');
@@ -288,9 +287,7 @@ async function registrarPago() {
         const res = await callAPI('finanzas', 'registrarPagoWeb', payload);
         if (res.success) {
             alert("✅ " + res.message);
-            // Recargar datos para ver el saldo actualizado (deuda 0)
-            abrirGestionTicket(currentTicketID);
-            // Actualizar tablero principal por si cambió el estado
+            abrirGestionTicket(currentTicketID); // Recargar para ver nuevo saldo
             if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
         } else {
             alert("⛔ Error: " + res.error);
@@ -299,41 +296,34 @@ async function registrarPago() {
         alert("Error de conexión: " + e.message);
     } finally {
         btn.disabled = false; 
-        btn.innerHTML = originalContent;
+        btn.innerHTML = '<i class="bi bi-check-circle-fill me-2"></i> CONFIRMAR PAGO';
     }
 }
 
 // =============================================================================
-// 4. EDICIÓN Y BLOQUEO POR DEUDA (CUENTA ABIERTA)
+// 4. EDICIÓN Y BLOQUEO POR DEUDA
 // =============================================================================
 
 async function guardarEdicion() {
     const nuevoEstado = document.getElementById('selGestionEstado').value;
-    const lblDeuda = document.getElementById('lblPagoDeuda');
-    const textoDeuda = lblDeuda ? lblDeuda.innerText.replace('S/ ', '').replace(/,/g,'') : '0';
-    const deuda = parseFloat(textoDeuda) || 0;
+    const lblPend = document.getElementById('lblPagoPendiente'); // Usamos el nuevo label rojo
+    const textoPend = lblPend ? lblPend.innerText.replace('S/ ', '').replace(/,/g,'') : '0';
+    const deuda = parseFloat(textoPend) || 0;
 
-    // --- REGLA DE ORO: BLOQUEO POR DEUDA ---
-    // Si intenta marcar como Entregado o Enviado y hay deuda, BLOQUEAR.
+    // --- REGLA DE ORO ---
     const estadosRestringidos = ['Entregado', 'Enviado'];
     
-    if (estadosRestringidos.includes(nuevoEstado) && deuda > 0.50) { // Margen 0.50 céntimos
-        // 1. Alerta Visual (Animación en CSS)
+    if (estadosRestringidos.includes(nuevoEstado) && deuda > 0.50) { 
         const modalBody = document.querySelector('#modalGestionTicket .modal-body');
         modalBody.classList.add('bloqueo-deuda');
-        
-        // 2. Mensaje Fuerte
-        alert(`⛔ ¡ALTO! CUENTA ABIERTA DETECTADA ⛔\n\nEl cliente "${currentClientData.nombre}" todavía debe S/ ${deuda.toFixed(2)}.\n\nEl sistema PROHÍBE cambiar el estado a "${nuevoEstado}" hasta que la deuda sea CERO.\n\nPor favor, registra el pago en la pestaña 'Pagos' primero.`);
-        
-        // 3. Quitar animación
+        alert(`⛔ ¡ALTO! CUENTA ABIERTA ⛔\n\nEl cliente debe S/ ${deuda.toFixed(2)}.\nNO puedes cambiar a "${nuevoEstado}" hasta saldar la deuda.`);
         setTimeout(() => modalBody.classList.remove('bloqueo-deuda'), 1000);
-        return; // Detener ejecución
+        return; 
     }
 
     if (!confirm("¿Actualizar datos del pedido?")) return;
     
     const usuario = JSON.parse(localStorage.getItem("erp_usuario"));
-    
     const payload = {
         id_ticket: currentTicketID,
         usuario_rol: usuario ? usuario.rol : 'Anon',
@@ -352,7 +342,6 @@ async function guardarEdicion() {
         const res = await callAPI('ventas', 'editarDatosTicket', payload);
         if (res.success) {
             alert("✅ " + res.message);
-            // Recargar Dashboard para reflejar cambios de estado/color
             if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
         } else {
             alert("⛔ Error: " + res.error);
@@ -361,7 +350,7 @@ async function guardarEdicion() {
 }
 
 // =============================================================================
-// 5. UTILIDADES UI Y LOGÍSTICA
+// 5. UTILIDADES UI
 // =============================================================================
 
 function llenarSelect(idSelect, arrayDatos, valorSeleccionado) {
@@ -400,8 +389,7 @@ function copiarDatosClienteDelivery() {
 
 async function guardarLogistica() {
     const btn = document.querySelector('#panelGestionDelivery button.btn-primary');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
-
+    btn.disabled = true; btn.innerHTML = 'Guardando...';
     const payload = {
         id_ticket: currentTicketID,
         es_delivery: document.getElementById('swGestionDelivery').checked,
@@ -411,31 +399,21 @@ async function guardarLogistica() {
         contacto: document.getElementById('txtGestionContacto').value,
         costo_delivery: document.getElementById('numGestionCostoDelivery').value
     };
-
     try {
         const res = await callAPI('ventas', 'guardarLogisticaTicket', payload);
-        if (res.success) {
-            alert("✅ Logística guardada. Costos actualizados.");
-            abrirGestionTicket(currentTicketID); 
-        } else {
-            alert("❌ " + res.error);
-        }
-    } catch (e) { alert("Error de conexión: " + e.message); }
+        if (res.success) { alert("✅ Logística guardada."); abrirGestionTicket(currentTicketID); } 
+        else alert("❌ " + res.error);
+    } catch (e) { alert("Error conexión"); }
     finally { btn.disabled = false; btn.innerHTML = 'Guardar Datos Delivery'; }
 }
 
 async function cambiarClienteTicket() {
-    const nuevoNombre = prompt("Ingresa el NOMBRE EXACTO del nuevo cliente (debe existir en el Directorio):");
+    const nuevoNombre = prompt("Ingresa el NOMBRE EXACTO del nuevo cliente:");
     if (!nuevoNombre) return;
-
-    // Buscar ID en el datalist (memoria caché rápida)
     const datalist = document.getElementById('listaClientes');
     let nuevoId = null;
-    
     for (let i = 0; i < datalist.options.length; i++) {
         if (datalist.options[i].value === nuevoNombre) {
-            // Asumiendo que guardamos el ID en un atributo data-id, si no, hay que buscar en window.clientesCache
-            // Buscaremos en window.clientesCache que cargó en ventas_arzuka.js
             if(window.clientesCache) {
                 const c = window.clientesCache.find(cli => cli.nombre === nuevoNombre);
                 if(c) nuevoId = c.id;
@@ -443,25 +421,11 @@ async function cambiarClienteTicket() {
             break;
         }
     }
-
-    if (!nuevoId) {
-        alert("Cliente no encontrado en memoria local. Asegúrate de que el nombre sea exacto o recarga la página.");
-        return;
-    }
-
-    if(!confirm(`¿Reasignar el ticket ${currentTicketID} a ${nuevoNombre}?`)) return;
-
+    if (!nuevoId) { alert("Cliente no encontrado en memoria. Verifica el nombre."); return; }
+    if(!confirm(`¿Reasignar a ${nuevoNombre}?`)) return;
     try {
-        const res = await callAPI('gestion', 'reasignarClienteTicket', { 
-            id_ticket: currentTicketID,
-            id_cliente: nuevoId
-        });
-        if(res.success) {
-            alert("✅ Cliente actualizado.");
-            abrirGestionTicket(currentTicketID);
-        } else {
-            alert("Error: " + res.error);
-        }
+        const res = await callAPI('gestion', 'reasignarClienteTicket', { id_ticket: currentTicketID, id_cliente: nuevoId });
+        if(res.success) { alert("✅ Cliente actualizado."); abrirGestionTicket(currentTicketID); }
     } catch(e) { alert("Error red"); }
 }
 
@@ -470,48 +434,27 @@ function clickInputFoto() { document.getElementById('fileGestionFoto').click(); 
 async function subirFotoSeleccionada() {
     const input = document.getElementById('fileGestionFoto');
     if (input.files.length === 0) return;
-    
-    const file = input.files[0];
-    const comentario = prompt("Descripción de la foto:", "Referencia");
+    const comentario = prompt("Descripción:", "Referencia");
     if (comentario === null) { input.value = ''; return; }
-
-    const container = document.getElementById('galeriaFotos');
-    container.innerHTML = '<div class="col-12 text-center py-5"><div class="spinner-border text-primary"></div><div class="mt-2 text-muted">Subiendo imagen...</div></div>';
-
     const reader = new FileReader();
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(input.files[0]);
     reader.onload = async function () {
         const base64 = reader.result.split(',')[1];
-        const payload = {
-            id_ticket: currentTicketID, base64: base64, mimeType: file.type,
-            comentario: comentario, usuario: 'WebUser' 
-        };
         try {
-            const res = await callAPI('ventas', 'subirFotoReferencia', payload);
-            if (res.success) {
-                const resData = await callAPI('ventas', 'obtenerDatosGestionTicket', { id_ticket: currentTicketID });
-                if (resData.success) renderizarGaleria(resData.data.multimedia);
-            } else {
-                alert("❌ Error subiendo: " + res.error);
-            }
-        } catch (e) { alert("Error red: " + e.message); }
+            await callAPI('ventas', 'subirFotoReferencia', { id_ticket: currentTicketID, base64: base64, mimeType: input.files[0].type, comentario: comentario });
+            abrirGestionTicket(currentTicketID);
+        } catch (e) { alert("Error red"); }
         input.value = '';
     };
 }
 
 async function generarContrato() {
-    const btns = document.querySelectorAll('#divContratoActions button');
-    btns.forEach(b => { b.disabled = true; b.innerText = "Procesando..."; });
-
     try {
         const res = await callAPI('ventas', 'generarContrato', { id_ticket: currentTicketID });
         if (res.success) {
             document.getElementById('divContratoActions').classList.add('d-none');
             document.getElementById('divContratoLink').classList.remove('d-none');
             document.getElementById('linkContratoFinal').href = res.url;
-        } else {
-            alert("❌ " + res.error);
-        }
-    } catch (e) { alert("Error de conexión"); }
-    finally { btns.forEach(b => b.disabled = false); }
+        } else alert("❌ " + res.error);
+    } catch (e) { alert("Error red"); }
 }
