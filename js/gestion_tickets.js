@@ -1,7 +1,7 @@
 /**
  * js/gestion_tickets.js
  * Lógica del Frontend para la Super Ventana de Gestión.
- * VERSIÓN FINAL CORREGIDA: Galería de Fotos Visible.
+ * VERSIÓN FINAL: Galería con Thumbnail (Fix imágenes rotas).
  */
 
 let currentTicketID = null;
@@ -105,7 +105,7 @@ async function abrirGestionTicket(idTicket) {
             document.getElementById('txtGestionContacto').value = log.contacto;
             document.getElementById('numGestionCostoDelivery').value = delivery;
 
-            // *** AQUÍ RENDERIZAMOS LA GALERÍA ***
+            // *** RENDERIZAR GALERÍA CON THUMBNAILS ***
             renderizarGaleria(data.multimedia);
 
             llenarSelect('selGestionVendedor', listas.vendedores, cab.id_vendedor);
@@ -140,7 +140,8 @@ async function abrirGestionTicket(idTicket) {
     } catch (e) { console.error(e); }
 }
 
-// === NUEVA FUNCIÓN CORREGIDA PARA GALERÍA ===
+// === NUEVA LÓGICA DE GALERÍA (THUMBNAIL) ===
+
 function renderizarGaleria(fotos) {
     const contenedor = document.getElementById('galeriaFotos');
     contenedor.innerHTML = '';
@@ -151,22 +152,26 @@ function renderizarGaleria(fotos) {
     }
 
     fotos.forEach((foto, index) => {
-        // Convertir URL de descarga a URL de vista para la miniatura
-        const urlVista = _ticketConvertirUrlDrive(foto.url);
+        // Convertir URL a Thumbnail (Vista Previa Segura)
+        const urlThumbnail = _convertirUrlDriveTicket(foto.url, 'view');
         
         contenedor.innerHTML += `
             <div class="col-md-4 col-sm-6">
                 <div class="card h-100 shadow-sm">
-                    <div style="height: 180px; overflow: hidden; background: #f0f0f0;">
-                        <img src="${urlVista}" class="card-img-top" style="height: 100%; object-fit: cover; cursor: pointer;" 
+                    <div style="height: 180px; overflow: hidden; background: #f8f9fa; display: flex; align-items: center; justify-content: center;">
+                        <img src="${urlThumbnail}" class="card-img-top" 
+                             style="max-height: 100%; width: 100%; object-fit: cover; cursor: pointer;" 
+                             onerror="this.src='https://via.placeholder.com/300?text=Error+Carga'"
                              onclick="window.open('${foto.url}', '_blank')">
                     </div>
                     <div class="card-body p-2">
                         <small class="text-muted d-block text-truncate fw-bold">${foto.tipo || 'Foto'}</small>
-                        <p class="card-text small mb-1">${foto.comentario || 'Sin comentario'}</p>
+                        <p class="card-text small mb-1 text-truncate">${foto.comentario || 'Sin comentario'}</p>
                         <div class="d-flex justify-content-between align-items-center mt-2">
                             <small class="text-muted" style="font-size: 0.7rem">${foto.fecha || ''}</small>
-                            <button class="btn btn-sm btn-light border" onclick="guardarComentarioFoto('${foto.url}', 'inputComent${index}')"><i class="bi bi-save"></i></button>
+                            <button class="btn btn-sm btn-light border" onclick="guardarComentarioFoto('${foto.url}', 'inputComent${index}')" title="Guardar Comentario">
+                                <i class="bi bi-save"></i>
+                            </button>
                         </div>
                         <input type="text" id="inputComent${index}" class="form-control form-control-sm mt-1" placeholder="Editar comentario..." value="${foto.comentario || ''}">
                     </div>
@@ -176,21 +181,26 @@ function renderizarGaleria(fotos) {
     });
 }
 
-function _ticketConvertirUrlDrive(url) {
+function _convertirUrlDriveTicket(url, tipo) {
     if (!url) return "";
     let id = "";
+    // Regex para detectar ID de Drive
     const regex1 = /\/file\/d\/([a-zA-Z0-9_-]+)/;
     const regex2 = /id=([a-zA-Z0-9_-]+)/;
     const match1 = url.match(regex1);
     const match2 = url.match(regex2);
+    
     if (match1 && match1[1]) id = match1[1];
     else if (match2 && match2[1]) id = match2[1];
 
-    if (id) return `https://drive.google.com/uc?export=view&id=${id}`;
+    if (id) {
+        if (tipo === 'view') return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
+        if (tipo === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
+    }
     return url;
 }
 
-// ... (Resto del código original de pagos, sálculos y edición) ...
+// ... (Resto del código original) ...
 
 function actualizarInterfazSaldos(total, subtotal, delivery, abonado, pendiente) {
     document.getElementById('lblResumenSubtotal').innerText = subtotal.toFixed(2);
