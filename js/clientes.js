@@ -1,7 +1,7 @@
 /**
  * js/clientes.js
  * Lógica del Módulo de Clientes.
- * VERSIÓN INSPECTOR: Thumbnail de fotos y Depuración de Fechas.
+ * VERSIÓN INSPECTOR: Corrección de Género y Depuración de Fechas.
  */
 
 let listaClientesGlobal = [];
@@ -50,7 +50,6 @@ function renderizarTablaClientes(lista) {
     const listaVisible = lista.slice(0, 100); 
 
     listaVisible.forEach(c => {
-        // Usamos el truco del Thumbnail también en la tabla
         let urlImg = _convertirUrlDrive(c.foto, 'view');
         const avatar = urlImg 
             ? `<img src="${urlImg}" class="rounded-circle border me-2" style="width:32px;height:32px;object-fit:cover;">`
@@ -124,7 +123,7 @@ function abrirModalCliente(id = null) {
         document.getElementById('txtCliEmail').value = c.email;
         document.getElementById('txtCliDireccion').value = c.direccion;
         document.getElementById('txtCliNombreCorto').value = c.nombre_corto || '';
-        document.getElementById('txtCliFotoUrl').value = c.foto || ''; // URL original (download)
+        document.getElementById('txtCliFotoUrl').value = c.foto || '';
         
         document.getElementById('txtCliDpto').value = c.departamento || '';
         document.getElementById('txtCliProv').value = c.provincia || '';
@@ -137,7 +136,7 @@ function abrirModalCliente(id = null) {
             calcularEdadCliente();
         }
 
-        actualizarPreviewFoto(); // Renderiza la vista previa
+        actualizarPreviewFoto();
         cargarEstadisticasCliente(c.id);
     } else {
         clienteActualId = null;
@@ -163,9 +162,9 @@ async function consultarDniDesdeModal() {
         if (res.success && res.data) {
             const d = res.data;
             
-            // INSPECTOR DE FECHA (Ver en consola del navegador F12)
-            console.log("🔍 INSPECTOR DATA:", d);
-            console.log("📅 Fecha Raw:", d.debug_fecha_valor, "Tipo:", d.debug_fecha_tipo);
+            // INSPECTOR: Ver en Consola F12
+            console.log("🔍 DATOS RECIBIDOS:", d);
+            console.log("📅 Fecha Debug:", d.debug_fecha_valor, "Tipo:", d.debug_fecha_tipo);
 
             document.getElementById('txtCliNombre').value = d.nombre_completo || '';
             
@@ -179,14 +178,19 @@ async function consultarDniDesdeModal() {
             document.getElementById('txtCliProv').value = d.provincia || '';
             document.getElementById('txtCliDist').value = d.distrito || '';
 
-            // Género
+            // --- CORRECCIÓN GÉNERO (Prioridad Femenino) ---
             if (d.genero) {
-                const g = String(d.genero).toUpperCase();
-                if (g.includes("M")) document.getElementById('selCliGenero').value = 'M';
-                else if (g.includes("F")) document.getElementById('selCliGenero').value = 'F';
+                const g = String(d.genero).toUpperCase().trim();
+                // Verificamos FEMENINO primero
+                if (g.startsWith("F") || g.includes("FEM")) {
+                    document.getElementById('selCliGenero').value = 'F';
+                } 
+                // Luego MASCULINO
+                else if (g.startsWith("M")) {
+                    document.getElementById('selCliGenero').value = 'M';
+                }
             }
 
-            // Hijos
             if (d.hijos !== null && d.hijos !== undefined) document.getElementById('txtCliHijos').value = d.hijos;
 
             // Fecha
@@ -195,15 +199,14 @@ async function consultarDniDesdeModal() {
                 document.getElementById('txtCliNacimiento').value = fechaFinal;
                 calcularEdadCliente();
                 
-                // Si sigue vacía, alertar para depurar
+                // Alerta si falla (Depuración temporal)
                 if (!document.getElementById('txtCliNacimiento').value) {
-                    console.warn("⚠️ La fecha no se pudo pintar en el input. Valor recibido:", d.fecha_nacimiento);
+                    console.warn("⚠️ Fecha no compatible con Input:", d.fecha_nacimiento);
                 }
             }
 
             // Foto
             if (d.foto) {
-                // Guardamos la versión descarga en BD
                 document.getElementById('txtCliFotoUrl').value = _convertirUrlDrive(d.foto, 'download');
                 actualizarPreviewFoto();
             } else {
@@ -224,7 +227,7 @@ async function consultarDniDesdeModal() {
     }
 }
 
-// --- UTILIDADES FOTO DRIVE (TRUCO THUMBNAIL) ---
+// --- UTILIDADES ---
 
 function _extraerIdDrive(url) {
     if (!url) return "";
@@ -241,14 +244,22 @@ function _extraerIdDrive(url) {
 function _convertirUrlDrive(url, tipo) {
     const id = _extraerIdDrive(url);
     if (!id) return url;
-    
-    // TRUCO: Usar API de thumbnails para la vista previa
     if (tipo === 'view') return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
-    
-    // Para guardar en BD, usamos el link de descarga
     if (tipo === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
-    
     return url;
+}
+
+function _formatearFechaParaInput(fechaRaw) {
+    if (!fechaRaw) return "";
+    const f = String(fechaRaw).trim();
+    if (f.match(/^\d{4}-\d{2}-\d{2}$/)) return f;
+    if (f.includes('T')) return f.substring(0, 10);
+    // Caso DD/MM/YYYY
+    if (f.includes('/')) {
+        const partes = f.split('/');
+        if(partes.length === 3) return `${partes[2]}-${partes[1]}-${partes[0]}`;
+    }
+    return "";
 }
 
 function actualizarPreviewFoto() {
@@ -257,7 +268,6 @@ function actualizarPreviewFoto() {
     const btnVer = document.getElementById('btnVerOriginal');
 
     if (rawUrl) {
-        // Convertimos a thumbnail para ver
         const urlVisual = _convertirUrlDrive(rawUrl, 'view');
         img.src = urlVisual;
         img.onerror = function() { this.src = 'https://via.placeholder.com/150?text=Error+Url'; };
@@ -267,16 +277,6 @@ function actualizarPreviewFoto() {
         img.src = 'https://via.placeholder.com/150?text=Sin+Foto';
         btnVer.classList.add('d-none');
     }
-}
-
-// ... (Resto de funciones: _formatearFechaParaInput, cambiarFotoPerfil, calcularEdad, guardar, etc. sin cambios lógicos, usar las anteriores) ...
-
-function _formatearFechaParaInput(fechaRaw) {
-    if (!fechaRaw) return "";
-    const f = String(fechaRaw).trim();
-    if (f.match(/^\d{4}-\d{2}-\d{2}$/)) return f;
-    if (f.includes('T')) return f.substring(0, 10);
-    return "";
 }
 
 function cambiarFotoPerfil() {
@@ -300,6 +300,10 @@ function calcularEdadCliente() {
     if (edad >= 0) lbl.innerText = `Edad: ${edad} años`;
     else lbl.innerText = "Fecha inválida";
 }
+
+// =============================================================================
+// 4. GUARDADO
+// =============================================================================
 
 async function guardarClienteForm() {
     const btn = document.querySelector('#modalCliente .btn-primary');
