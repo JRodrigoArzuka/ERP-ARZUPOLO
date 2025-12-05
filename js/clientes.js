@@ -1,14 +1,14 @@
 /**
  * js/clientes.js
- * Lógica del Módulo de Clientes.
- * VERSIÓN INSPECTOR: Corrección de Género y Depuración de Fechas.
+ * Lógica del Módulo de Clientes (Frontend).
+ * VERSIÓN FINAL: Parser de Fechas Universal (Soporta 'Fri Jan 22...') y Fotos.
  */
 
 let listaClientesGlobal = [];
 let clienteActualId = null; 
 
 // =============================================================================
-// 1. INICIALIZACIÓN
+// 1. INICIALIZACIÓN Y LISTADO
 // =============================================================================
 
 async function inicializarModuloClientes() {
@@ -101,7 +101,6 @@ function abrirModalCliente(id = null) {
     document.getElementById('lblEdadCalculada').innerText = "";
     document.getElementById('btnVerOriginal').classList.add('d-none');
     
-    // Resetear Tabs y Stats
     const firstTabBtn = document.querySelector('#tabsCliente button[data-bs-target="#tab-datos-cli"]');
     if(firstTabBtn) new bootstrap.Tab(firstTabBtn).show();
     document.getElementById('statTotalGastado').innerText = "S/ 0.00";
@@ -162,9 +161,8 @@ async function consultarDniDesdeModal() {
         if (res.success && res.data) {
             const d = res.data;
             
-            // INSPECTOR: Ver en Consola F12
-            console.log("🔍 DATOS RECIBIDOS:", d);
-            console.log("📅 Fecha Debug:", d.debug_fecha_valor, "Tipo:", d.debug_fecha_tipo);
+            // Log para verificar en consola
+            console.log("Datos recibidos:", d);
 
             document.getElementById('txtCliNombre').value = d.nombre_completo || '';
             
@@ -178,14 +176,14 @@ async function consultarDniDesdeModal() {
             document.getElementById('txtCliProv').value = d.provincia || '';
             document.getElementById('txtCliDist').value = d.distrito || '';
 
-            // --- CORRECCIÓN GÉNERO (Prioridad Femenino) ---
+            // Género
             if (d.genero) {
                 const g = String(d.genero).toUpperCase().trim();
-                // Verificamos FEMENINO primero
+                // "F" o "FEMENINO"
                 if (g.startsWith("F") || g.includes("FEM")) {
                     document.getElementById('selCliGenero').value = 'F';
                 } 
-                // Luego MASCULINO
+                // "M" o "MASCULINO"
                 else if (g.startsWith("M")) {
                     document.getElementById('selCliGenero').value = 'M';
                 }
@@ -193,16 +191,11 @@ async function consultarDniDesdeModal() {
 
             if (d.hijos !== null && d.hijos !== undefined) document.getElementById('txtCliHijos').value = d.hijos;
 
-            // Fecha
+            // Fecha (AQUÍ ESTÁ LA MAGIA MEJORADA)
             if (d.fecha_nacimiento) {
                 const fechaFinal = _formatearFechaParaInput(d.fecha_nacimiento);
                 document.getElementById('txtCliNacimiento').value = fechaFinal;
                 calcularEdadCliente();
-                
-                // Alerta si falla (Depuración temporal)
-                if (!document.getElementById('txtCliNacimiento').value) {
-                    console.warn("⚠️ Fecha no compatible con Input:", d.fecha_nacimiento);
-                }
             }
 
             // Foto
@@ -249,17 +242,33 @@ function _convertirUrlDrive(url, tipo) {
     return url;
 }
 
+// *** FUNCIÓN DE FECHA MEJORADA ***
 function _formatearFechaParaInput(fechaRaw) {
     if (!fechaRaw) return "";
+    
+    // 1. Convertir a string
     const f = String(fechaRaw).trim();
+
+    // 2. Si ya es YYYY-MM-DD (ISO)
     if (f.match(/^\d{4}-\d{2}-\d{2}$/)) return f;
-    if (f.includes('T')) return f.substring(0, 10);
-    // Caso DD/MM/YYYY
+
+    // 3. Intento de parseo nativo JS (Maneja "Fri Jan 22 1993...")
+    const fechaObj = new Date(fechaRaw);
+    if (!isNaN(fechaObj.getTime())) {
+        // Es válida, extraemos partes manualmente para evitar zona horaria
+        const y = fechaObj.getFullYear();
+        const m = String(fechaObj.getMonth() + 1).padStart(2, '0');
+        const d = String(fechaObj.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+    }
+
+    // 4. Si es DD/MM/YYYY
     if (f.includes('/')) {
         const partes = f.split('/');
         if(partes.length === 3) return `${partes[2]}-${partes[1]}-${partes[0]}`;
     }
-    return "";
+
+    return ""; // Falló todo
 }
 
 function actualizarPreviewFoto() {
@@ -301,10 +310,6 @@ function calcularEdadCliente() {
     else lbl.innerText = "Fecha inválida";
 }
 
-// =============================================================================
-// 4. GUARDADO
-// =============================================================================
-
 async function guardarClienteForm() {
     const btn = document.querySelector('#modalCliente .btn-primary');
     btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
@@ -337,7 +342,7 @@ async function guardarClienteForm() {
         const res = await callAPI('clientes', 'guardarCliente', payload);
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('modalCliente')).hide();
-            alert("✅ Guardado.");
+            alert("✅ Cliente guardado.");
             inicializarModuloClientes(); 
         } else { alert("Error: " + res.error); }
     } catch(e) { alert("Red error: " + e.message); } 
