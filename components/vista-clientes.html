@@ -33,7 +33,7 @@
     </div>
 </div>
 
-<!-- MODAL PRINCIPAL: GESTIÓN DE CLIENTE (DATOS + STATS) -->
+<!-- MODAL PRINCIPAL -->
 <div class="modal fade" id="modalCliente" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -45,7 +45,6 @@
 
             <div class="modal-body p-0">
                 
-                <!-- NAVEGACIÓN PESTAÑAS -->
                 <ul class="nav nav-tabs nav-fill bg-light fw-bold" id="tabsCliente" role="tablist">
                     <li class="nav-item">
                         <button class="nav-link active py-3" data-bs-toggle="tab" data-bs-target="#tab-datos-cli">
@@ -69,14 +68,22 @@
                             <div class="row g-3">
                                 <!-- Columna Izquierda: Foto -->
                                 <div class="col-md-3 text-center">
-                                    <div class="border rounded p-1 bg-white shadow-sm mb-2" style="width: 100%; height: 160px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                                    <div class="border rounded p-1 bg-white shadow-sm mb-2 position-relative" style="width: 100%; height: 160px; display: flex; align-items: center; justify-content: center; background-color: #f8f9fa;">
                                         <img id="imgFotoPreview" src="https://via.placeholder.com/150?text=Sin+Foto" class="img-fluid" style="max-height: 100%; object-fit: cover;">
                                     </div>
-                                    <label class="small fw-bold text-muted">URL Foto Perfil</label>
-                                    <input type="text" id="txtCliFotoUrl" class="form-control form-control-sm mb-2" placeholder="https://..." onchange="actualizarPreviewFoto()">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="window.open(document.getElementById('txtCliFotoUrl').value, '_blank')">
-                                        <i class="bi bi-eye"></i> Ver Original
-                                    </button>
+                                    
+                                    <!-- Input Oculto -->
+                                    <input type="hidden" id="txtCliFotoUrl">
+                                    
+                                    <!-- Botones de Gestión de Foto -->
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-primary fw-bold" onclick="cambiarFotoPerfil()">
+                                            <i class="bi bi-camera-fill me-1"></i> Actualizar Foto
+                                        </button>
+                                        <a href="#" id="btnVerOriginal" target="_blank" class="btn btn-sm btn-link text-decoration-none text-muted d-none" style="font-size: 0.8rem;">
+                                            Ver Original <i class="bi bi-box-arrow-up-right"></i>
+                                        </a>
+                                    </div>
                                 </div>
 
                                 <!-- Columna Derecha: Formulario -->
@@ -132,9 +139,7 @@
                                         </div>
                                     </div>
                                     
-                                    <!-- Edad Calculada (Informativo) -->
                                     <div id="lblEdadCalculada" class="text-end mt-1 text-muted small fst-italic"></div>
-
                                 </div>
                             </div>
                         </form>
@@ -142,8 +147,6 @@
 
                     <!-- TAB 2: ESTADÍSTICAS -->
                     <div class="tab-pane fade" id="tab-stats-cli">
-                        
-                        <!-- KPIs -->
                         <div class="row g-3 mb-4">
                             <div class="col-4">
                                 <div class="card bg-success bg-opacity-10 border-success text-center h-100">
@@ -171,7 +174,6 @@
                             </div>
                         </div>
 
-                        <!-- TABLA HISTORIAL -->
                         <div class="card border-0 shadow-sm">
                             <div class="card-header bg-white fw-bold small text-muted">
                                 <i class="bi bi-clock-history me-1"></i> Últimas Compras
@@ -179,12 +181,7 @@
                             <div class="table-responsive" style="max-height: 250px;">
                                 <table class="table table-sm table-striped mb-0 align-middle">
                                     <thead class="table-light">
-                                        <tr>
-                                            <th>Fecha</th>
-                                            <th>Ticket</th>
-                                            <th>Estado</th>
-                                            <th class="text-end">Monto</th>
-                                        </tr>
+                                        <tr><th>Fecha</th><th>Ticket</th><th>Estado</th><th class="text-end">Monto</th></tr>
                                     </thead>
                                     <tbody id="tblHistorialBody">
                                         <tr><td colspan="4" class="text-center text-muted">Cargando datos...</td></tr>
@@ -192,7 +189,6 @@
                                 </table>
                             </div>
                         </div>
-
                     </div>
 
                 </div>
