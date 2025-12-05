@@ -1,7 +1,7 @@
 /**
  * js/clientes.js
  * Lógica del Módulo de Clientes (Frontend).
- * VERSIÓN FINAL: Corrección de Mapeo (Género/Hijos) y Visualización de Fotos.
+ * VERSIÓN FINAL CORREGIDA: Mapeo de Género, Ceros y Fotos.
  */
 
 let listaClientesGlobal = [];
@@ -53,12 +53,11 @@ function renderizarTablaClientes(lista) {
     const listaVisible = lista.slice(0, 100); 
 
     listaVisible.forEach(c => {
-        let urlImg = _convertirUrlDrive(c.foto, 'view'); // Para tabla usamos VIEW
+        let urlImg = _convertirUrlDrive(c.foto, 'view');
         const avatar = urlImg 
             ? `<img src="${urlImg}" class="rounded-circle border me-2" style="width:32px;height:32px;object-fit:cover;">`
             : `<div class="rounded-circle bg-light border d-inline-flex align-items-center justify-content-center me-2 text-muted fw-bold" style="width:32px;height:32px;">${c.nombre.charAt(0)}</div>`;
 
-        // Ubicación formateada
         let ubicacion = '-';
         if (c.distrito || c.provincia) {
             ubicacion = `<small class="d-block text-truncate" style="max-width:150px;">${c.distrito || ''}, ${c.provincia || ''}</small>`;
@@ -105,18 +104,15 @@ function filtrarClientesTabla() {
 function abrirModalCliente(id = null) {
     const modal = new bootstrap.Modal(document.getElementById('modalCliente'));
     
-    // Resetear todo el formulario
     document.getElementById('formCliente').reset();
     document.getElementById('imgFotoPreview').src = "https://via.placeholder.com/150?text=Sin+Foto";
     document.getElementById('txtCliFotoUrl').value = ""; 
     document.getElementById('lblEdadCalculada').innerText = "";
     document.getElementById('btnVerOriginal').classList.add('d-none');
     
-    // Resetear Tabs
     const firstTabBtn = document.querySelector('#tabsCliente button[data-bs-target="#tab-datos-cli"]');
     if(firstTabBtn) new bootstrap.Tab(firstTabBtn).show();
 
-    // Resetear Stats
     document.getElementById('statTotalGastado').innerText = "S/ 0.00";
     document.getElementById('statVisitas').innerText = "0";
     document.getElementById('statFechaRegistro').innerText = "---";
@@ -130,7 +126,6 @@ function abrirModalCliente(id = null) {
         document.getElementById('hdnIdCliente').value = c.id;
         document.getElementById('lblTituloModalCliente').innerText = "Editar Cliente";
         
-        // Cargar Datos Básicos
         document.getElementById('txtCliNombre').value = c.nombre;
         document.getElementById('txtCliDoc').value = c.documento;
         document.getElementById('txtCliCelular').value = c.celular;
@@ -139,20 +134,18 @@ function abrirModalCliente(id = null) {
         document.getElementById('txtCliNombreCorto').value = c.nombre_corto || '';
         document.getElementById('txtCliFotoUrl').value = c.foto || '';
         
-        // Cargar Datos Extendidos
         document.getElementById('txtCliDpto').value = c.departamento || '';
         document.getElementById('txtCliProv').value = c.provincia || '';
         document.getElementById('txtCliDist').value = c.distrito || '';
         document.getElementById('selCliGenero').value = c.genero || '';
         document.getElementById('txtCliHijos').value = c.hijos !== undefined ? c.hijos : '';
 
-        // Fecha
         if(c.fecha_nacimiento) {
             document.getElementById('txtCliNacimiento').value = _formatearFechaParaInput(c.fecha_nacimiento);
+            calcularEdadCliente();
         }
 
         actualizarPreviewFoto();
-        calcularEdadCliente();
         cargarEstadisticasCliente(c.id);
 
     } else {
@@ -166,7 +159,7 @@ function abrirModalCliente(id = null) {
 }
 
 // =============================================================================
-// 3. CONSULTA DNI Y MAPEO AUTOMÁTICO (AQUÍ ESTÁ LA CORRECCIÓN)
+// 3. CONSULTA DNI Y MAPEO AUTOMÁTICO (CORREGIDO)
 // =============================================================================
 
 async function consultarDniDesdeModal() {
@@ -185,54 +178,61 @@ async function consultarDniDesdeModal() {
         if (res.success && res.data) {
             const d = res.data;
             
-            // 1. Datos Personales
+            // Datos Personales
             document.getElementById('txtCliNombre').value = d.nombre_completo || '';
             
-            // Nombre Corto
             let nombreCorto = '';
-            if (d.nombres) {
-                nombreCorto = d.nombres.split(' ')[0];
-            } else if (d.nombre_completo) {
-                nombreCorto = d.nombre_completo.split(' ')[0];
-            }
+            if (d.nombres) nombreCorto = d.nombres.split(' ')[0];
+            else if (d.nombre_completo) nombreCorto = d.nombre_completo.split(' ')[0];
+            
             if(nombreCorto) {
                 document.getElementById('txtCliNombreCorto').value = nombreCorto.toLowerCase().replace(/^\w/, c => c.toUpperCase());
             }
 
-            // 2. Ubicación
+            // Ubicación
             document.getElementById('txtCliDireccion').value = d.direccion || '';
             document.getElementById('txtCliDpto').value = d.departamento || '';
             document.getElementById('txtCliProv').value = d.provincia || '';
             document.getElementById('txtCliDist').value = d.distrito || '';
 
-            // 3. Extras (CORREGIDO PARA TU DATA)
-            
-            // Mapeo de Género: "FEMENINO" -> "F", "MASCULINO" -> "M"
+            // --- CORRECCIÓN GÉNERO ---
             if (d.genero) {
-                const g = d.genero.toUpperCase().trim();
-                if (g.startsWith('F')) document.getElementById('selCliGenero').value = 'F';
-                else if (g.startsWith('M')) document.getElementById('selCliGenero').value = 'M';
+                const g = String(d.genero).toUpperCase();
+                // Si contiene MASCULINO o empieza con M -> M
+                if (g.includes("MASCULINO") || g === "M") {
+                    document.getElementById('selCliGenero').value = 'M';
+                } 
+                // Si contiene FEMENINO o empieza con F -> F
+                else if (g.includes("FEMENINO") || g === "F") {
+                    document.getElementById('selCliGenero').value = 'F';
+                }
             }
 
-            // Hijos: Aceptamos 0 como valor válido
-            if (d.hijos !== undefined && d.hijos !== null && d.hijos !== "") {
+            // --- CORRECCIÓN HIJOS ---
+            // Aceptamos 0 como valor válido. Solo ignoramos null o string vacío.
+            if (d.hijos !== null && d.hijos !== "" && d.hijos !== undefined) {
                 document.getElementById('txtCliHijos').value = d.hijos;
+            } else {
+                document.getElementById('txtCliHijos').value = "";
             }
 
-            // 4. Fecha y Foto
+            // Fecha
             if (d.fecha_nacimiento) {
                 document.getElementById('txtCliNacimiento').value = _formatearFechaParaInput(d.fecha_nacimiento);
                 calcularEdadCliente();
             }
 
+            // Foto
             if (d.foto) {
-                // Guardamos el link puro o de descarga en el input hidden
-                document.getElementById('txtCliFotoUrl').value = _convertirUrlDrive(d.foto, 'download');
-                // Actualizamos la vista previa
+                const linkDescarga = _convertirUrlDrive(d.foto, 'download');
+                document.getElementById('txtCliFotoUrl').value = linkDescarga;
+                actualizarPreviewFoto();
+            } else {
+                // Si no hay foto, limpiar preview
+                document.getElementById('txtCliFotoUrl').value = "";
                 actualizarPreviewFoto();
             }
 
-            // Feedback visual
             document.getElementById('txtCliNombre').classList.add('is-valid');
             setTimeout(() => document.getElementById('txtCliNombre').classList.remove('is-valid'), 2000);
         } else {
@@ -246,11 +246,12 @@ async function consultarDniDesdeModal() {
     }
 }
 
-// --- UTILIDADES FOTO DRIVE MEJORADAS ---
+// --- UTILIDADES ---
 
 function _extraerIdDrive(url) {
     if (!url) return "";
     let id = "";
+    // Soporte para múltiples formatos de Drive
     const regex1 = /\/file\/d\/([a-zA-Z0-9_-]+)/;
     const regex2 = /id=([a-zA-Z0-9_-]+)/;
     const match1 = url.match(regex1);
@@ -260,26 +261,21 @@ function _extraerIdDrive(url) {
     return id;
 }
 
-// Función unificada para convertir URL
 function _convertirUrlDrive(url, tipo) {
     const id = _extraerIdDrive(url);
-    if (!id) return url; // No es drive, retorna original
+    if (!id) return url; // Retorna original si no es Drive
     
     if (tipo === 'view') return `https://drive.google.com/uc?export=view&id=${id}`;
     if (tipo === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
-    
     return url;
 }
 
 function _formatearFechaParaInput(fechaRaw) {
     if (!fechaRaw) return "";
-    // Asegurar string
     const f = String(fechaRaw).trim();
-    // YYYY-MM-DD
     if (f.match(/^\d{4}-\d{2}-\d{2}$/)) return f;
-    // ISO T
     if (f.includes('T')) return f.substring(0, 10);
-    // DD/MM/YYYY
+    // Caso DD/MM/YYYY
     if (f.includes('/')) {
         const partes = f.split('/');
         if(partes.length === 3) return `${partes[2]}-${partes[1]}-${partes[0]}`;
@@ -293,7 +289,6 @@ function actualizarPreviewFoto() {
     const btnVer = document.getElementById('btnVerOriginal');
 
     if (rawUrl) {
-        // Convertir lo que haya en el input a URL de VISTA para el img
         const urlVisual = _convertirUrlDrive(rawUrl, 'view');
         img.src = urlVisual;
         img.onerror = function() { this.src = 'https://via.placeholder.com/150?text=Error+Url'; };
@@ -309,7 +304,6 @@ function cambiarFotoPerfil() {
     const actual = document.getElementById('txtCliFotoUrl').value;
     const nueva = prompt("URL de la nueva foto:", actual);
     if (nueva !== null) {
-        // Aseguramos guardar como descarga
         const linkLimpio = _convertirUrlDrive(nueva.trim(), 'download');
         document.getElementById('txtCliFotoUrl').value = linkLimpio;
         actualizarPreviewFoto();
@@ -365,7 +359,7 @@ async function guardarClienteForm() {
         const res = await callAPI('clientes', 'guardarCliente', payload);
         if (res.success) {
             bootstrap.Modal.getInstance(document.getElementById('modalCliente')).hide();
-            alert("✅ Cliente guardado.");
+            alert("✅ Guardado.");
             inicializarModuloClientes(); 
         } else { alert("Error: " + res.error); }
     } catch(e) { alert("Red error: " + e.message); } 
