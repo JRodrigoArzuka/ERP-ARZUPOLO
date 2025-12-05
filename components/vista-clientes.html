@@ -1,15 +1,16 @@
 <div id="view-clientes" class="view-section">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="m-0 text-primary"><i class="bi bi-people-fill"></i> Directorio de Clientes</h2>
-        <button class="btn btn-success fw-bold px-4" onclick="abrirModalCliente()">
+        <button class="btn btn-success fw-bold px-4 shadow-sm" onclick="abrirModalCliente()">
             <i class="bi bi-person-plus-fill"></i> Nuevo Cliente
         </button>
     </div>
 
+    <!-- BUSCADOR Y LISTA -->
     <div class="card shadow-sm border-0">
         <div class="card-header bg-white py-3">
             <div class="input-group">
-                <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
                 <input type="text" id="txtBuscarCliente" class="form-control border-start-0" placeholder="Buscar por nombre, celular o DNI..." onkeyup="filtrarClientesTabla()">
             </div>
         </div>
@@ -17,85 +18,191 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="table-light sticky-top">
                     <tr>
-                        <th>Nombre</th>
+                        <th class="ps-3">Cliente</th>
                         <th>Documento</th>
                         <th>Celular</th>
-                        <th>Historial</th>
-                        <th class="text-end">Acción</th>
+                        <th>Email</th>
+                        <th class="text-end pe-3">Acción</th>
                     </tr>
                 </thead>
                 <tbody id="tblClientesBody">
-                    <tr><td colspan="5" class="text-center py-5">Cargando...</td></tr>
+                    <tr><td colspan="5" class="text-center py-5">Cargando directorio...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-<!-- MODAL: CREAR/EDITAR CLIENTE -->
+<!-- MODAL PRINCIPAL: GESTIÓN DE CLIENTE (DATOS + STATS) -->
 <div class="modal fade" id="modalCliente" tabindex="-1" data-bs-backdrop="static">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title" id="lblTituloModalCliente">Nuevo Cliente</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="formCliente">
-                    <input type="hidden" id="hdnIdCliente">
-                    <div class="mb-3">
-                        <label class="small fw-bold">Nombre Completo *</label>
-                        <input type="text" id="txtCliNombre" class="form-control" required>
-                    </div>
-                    <div class="row mb-3">
-                        <div class="col-4">
-                            <label class="small fw-bold">Tipo Doc</label>
-                            <select id="selCliTipoDoc" class="form-select">
-                                <option>DNI</option><option>RUC</option><option>CE</option>
-                            </select>
-                        </div>
-                        <div class="col-8">
-                            <label class="small fw-bold">Número Doc</label>
-                            <input type="text" id="txtCliDoc" class="form-control">
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="small fw-bold">Celular (WhatsApp) *</label>
-                        <input type="text" id="txtCliCelular" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="small fw-bold">Dirección (Referencia)</label>
-                        <input type="text" id="txtCliDireccion" class="form-control">
-                    </div>
-                    <div class="mb-3">
-                        <label class="small fw-bold">Email</label>
-                        <input type="email" id="txtCliEmail" class="form-control">
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary fw-bold" onclick="guardarClienteForm()">Guardar</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- MODAL: HISTORIAL CLIENTE -->
-<div class="modal fade" id="modalHistorialCliente" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title">Historial de Compras</h5>
+            
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="lblTituloModalCliente">Gestión de Cliente</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
+
             <div class="modal-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-striped mb-0">
-                        <thead class="table-light"><tr><th>Ticket</th><th>Fecha</th><th>Estado</th><th class="text-end">Total</th></tr></thead>
-                        <tbody id="tblHistorialBody"></tbody>
-                    </table>
+                
+                <!-- NAVEGACIÓN PESTAÑAS -->
+                <ul class="nav nav-tabs nav-fill bg-light fw-bold" id="tabsCliente" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active py-3" data-bs-toggle="tab" data-bs-target="#tab-datos-cli">
+                            <i class="bi bi-person-vcard me-2"></i> Datos Personales
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link py-3" data-bs-toggle="tab" data-bs-target="#tab-stats-cli" id="btnTabStats">
+                            <i class="bi bi-graph-up-arrow me-2"></i> Historial y Estadísticas
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content p-4">
+                    
+                    <!-- TAB 1: DATOS PERSONALES -->
+                    <div class="tab-pane fade show active" id="tab-datos-cli">
+                        <form id="formCliente">
+                            <input type="hidden" id="hdnIdCliente">
+                            
+                            <div class="row g-3">
+                                <!-- Columna Izquierda: Foto -->
+                                <div class="col-md-3 text-center">
+                                    <div class="border rounded p-1 bg-white shadow-sm mb-2" style="width: 100%; height: 160px; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                                        <img id="imgFotoPreview" src="https://via.placeholder.com/150?text=Sin+Foto" class="img-fluid" style="max-height: 100%; object-fit: cover;">
+                                    </div>
+                                    <label class="small fw-bold text-muted">URL Foto Perfil</label>
+                                    <input type="text" id="txtCliFotoUrl" class="form-control form-control-sm mb-2" placeholder="https://..." onchange="actualizarPreviewFoto()">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary w-100" onclick="window.open(document.getElementById('txtCliFotoUrl').value, '_blank')">
+                                        <i class="bi bi-eye"></i> Ver Original
+                                    </button>
+                                </div>
+
+                                <!-- Columna Derecha: Formulario -->
+                                <div class="col-md-9">
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-4">
+                                            <label class="small fw-bold text-muted">Tipo Doc</label>
+                                            <select id="selCliTipoDoc" class="form-select">
+                                                <option value="DNI">DNI</option>
+                                                <option value="RUC">RUC</option>
+                                                <option value="CE">CE</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-8">
+                                            <label class="small fw-bold text-muted">Número (Enter para buscar)</label>
+                                            <div class="input-group">
+                                                <input type="text" id="txtCliDoc" class="form-control fw-bold" placeholder="Escribe y presiona Buscar..." onkeydown="if(event.key==='Enter') consultarDniDesdeModal()">
+                                                <button type="button" class="btn btn-primary" onclick="consultarDniDesdeModal()" title="Consultar en Base Externa">
+                                                    <i class="bi bi-search"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="small fw-bold text-muted">Nombre Completo *</label>
+                                        <input type="text" id="txtCliNombre" class="form-control text-uppercase" required>
+                                    </div>
+
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <label class="small fw-bold text-muted">Nombre Corto (WhatsApp)</label>
+                                            <input type="text" id="txtCliNombreCorto" class="form-control" placeholder="Ej: Juan">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="small fw-bold text-muted">Fecha Nacimiento</label>
+                                            <input type="date" id="txtCliNacimiento" class="form-control" onchange="calcularEdadCliente()">
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-2">
+                                        <div class="col-md-6">
+                                            <label class="small fw-bold text-muted">Celular *</label>
+                                            <input type="text" id="txtCliCelular" class="form-control" required>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="small fw-bold text-muted">Email</label>
+                                            <input type="email" id="txtCliEmail" class="form-control">
+                                        </div>
+                                        <div class="col-12 mt-2">
+                                            <label class="small fw-bold text-muted">Dirección Completa</label>
+                                            <input type="text" id="txtCliDireccion" class="form-control">
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Edad Calculada (Informativo) -->
+                                    <div id="lblEdadCalculada" class="text-end mt-1 text-muted small fst-italic"></div>
+
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- TAB 2: ESTADÍSTICAS -->
+                    <div class="tab-pane fade" id="tab-stats-cli">
+                        
+                        <!-- KPIs -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-4">
+                                <div class="card bg-success bg-opacity-10 border-success text-center h-100">
+                                    <div class="card-body py-2">
+                                        <small class="text-success fw-bold text-uppercase" style="font-size:0.7rem;">Total Gastado</small>
+                                        <h4 class="m-0 fw-bold text-success" id="statTotalGastado">S/ 0.00</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card bg-primary bg-opacity-10 border-primary text-center h-100">
+                                    <div class="card-body py-2">
+                                        <small class="text-primary fw-bold text-uppercase" style="font-size:0.7rem;">N° Visitas</small>
+                                        <h4 class="m-0 fw-bold text-primary" id="statVisitas">0</h4>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card bg-secondary bg-opacity-10 border-secondary text-center h-100">
+                                    <div class="card-body py-2">
+                                        <small class="text-secondary fw-bold text-uppercase" style="font-size:0.7rem;">Cliente Desde</small>
+                                        <h5 class="m-0 fw-bold text-secondary mt-1" id="statFechaRegistro">---</h5>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TABLA HISTORIAL -->
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white fw-bold small text-muted">
+                                <i class="bi bi-clock-history me-1"></i> Últimas Compras
+                            </div>
+                            <div class="table-responsive" style="max-height: 250px;">
+                                <table class="table table-sm table-striped mb-0 align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Ticket</th>
+                                            <th>Estado</th>
+                                            <th class="text-end">Monto</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tblHistorialBody">
+                                        <tr><td colspan="4" class="text-center text-muted">Cargando datos...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                    </div>
+
                 </div>
+            </div>
+
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <button type="button" class="btn btn-primary fw-bold px-4" onclick="guardarClienteForm()">
+                    <i class="bi bi-save me-1"></i> Guardar Cambios
+                </button>
             </div>
         </div>
     </div>

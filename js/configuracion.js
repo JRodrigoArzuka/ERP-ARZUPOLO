@@ -1,7 +1,7 @@
 /**
  * js/configuracion.js
  * Lógica del Frontend para Configuración.
- * VERSIÓN FINAL: Gestión de Estados con Edición de Colores.
+ * VERSIÓN FINAL: Gestión de Estados, Usuarios y Conexiones Externas.
  */
 
 let globalConfigData = { listas: {}, usuarios: [] };
@@ -42,13 +42,17 @@ async function cargarConfiguracion() {
 function procesarDatosConfig(datos) {
     globalConfigData = datos;
     
-    // Claves
+    // Claves y Conexiones
     if (datos.claves) {
         document.getElementById('txtConfigDocId').value = datos.claves.DOC_TEMPLATE_ID || '';
         document.getElementById('txtConfigFolderContratos').value = datos.claves.CONTRACTS_FOLDER_ID || '';
         document.getElementById('txtConfigFolderImagenes').value = datos.claves.IMAGE_FOLDER_ID || '';
         document.getElementById('txtConfigLoyverse').value = datos.claves.LOYVERSE_API_TOKEN || '';
         document.getElementById('txtConfigWasender').value = datos.claves.WASENDER_API_KEY || '';
+        
+        // NUEVO: URL de Datos Externos (DNI)
+        document.getElementById('txtConfigDataDniUrl').value = datos.claves.DATA_DNI_URL || '';
+
         document.getElementById('chkConfigCache').checked = datos.claves.CACHE_ENABLED;
     }
 
@@ -315,7 +319,8 @@ async function guardarClaves() {
         CONTRACTS_FOLDER_ID: document.getElementById('txtConfigFolderContratos').value,
         IMAGE_FOLDER_ID: document.getElementById('txtConfigFolderImagenes').value,
         LOYVERSE_API_TOKEN: document.getElementById('txtConfigLoyverse').value,
-        WASENDER_API_KEY: document.getElementById('txtConfigWasender').value
+        WASENDER_API_KEY: document.getElementById('txtConfigWasender').value,
+        DATA_DNI_URL: document.getElementById('txtConfigDataDniUrl').value // NUEVO
     };
     const res = await callAPI('configuracion', 'guardarClavesSistema', payload);
     alert(res.success ? "✅ Guardado" : "❌ Error");

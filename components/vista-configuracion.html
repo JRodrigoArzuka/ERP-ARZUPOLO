@@ -47,6 +47,8 @@
                     </div>
 
                     <form id="formClaves" onsubmit="event.preventDefault(); guardarClaves();">
+                        
+                        <!-- GOOGLE DRIVE -->
                         <h6 class="fw-bold text-muted border-bottom pb-2 mb-3">Google Drive (Documentos)</h6>
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
@@ -63,7 +65,21 @@
                             </div>
                         </div>
 
-                        <h6 class="fw-bold text-muted border-bottom pb-2 mb-3">Integraciones Externas</h6>
+                        <!-- DATOS EXTERNOS (DNI) -->
+                        <h6 class="fw-bold text-muted border-bottom pb-2 mb-3">Datos Externos (Consultas DNI)</h6>
+                        <div class="row g-3 mb-4">
+                            <div class="col-12">
+                                <label class="small fw-bold">URL Base de Datos DNI (Script Web)</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light"><i class="bi bi-link-45deg"></i></span>
+                                    <input type="text" id="txtConfigDataDniUrl" class="form-control font-monospace" placeholder="https://script.google.com/macros/s/..." autocomplete="off">
+                                </div>
+                                <small class="text-muted">Pega aquí la URL del Web App que contiene la base de datos de RENIEC/Data.</small>
+                            </div>
+                        </div>
+
+                        <!-- INTEGRACIONES -->
+                        <h6 class="fw-bold text-muted border-bottom pb-2 mb-3">Integraciones API</h6>
                         <div class="row g-3">
                             <div class="col-md-6">
                                 <label class="small fw-bold">Loyverse API Token</label>
@@ -113,7 +129,7 @@
 
                 </div>
 
-                <!-- TAB 2: LISTAS MAESTRAS (ACTUALIZADO CON COLORES) -->
+                <!-- TAB 2: LISTAS MAESTRAS -->
                 <div class="tab-pane fade" id="conf-maestros">
                     <div class="row">
                         <div class="col-md-4 border-end">
