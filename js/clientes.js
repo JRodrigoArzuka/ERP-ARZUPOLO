@@ -1,14 +1,14 @@
 /**
  * js/clientes.js
  * Lógica del Módulo de Clientes (Frontend).
- * VERSIÓN FINAL: Parser de Fechas Universal (Soporta 'Fri Jan 22...') y Fotos.
+ * VERSIÓN ROBUSTA: Lectura de datos visuales (Fix fecha 1993/2001).
  */
 
 let listaClientesGlobal = [];
 let clienteActualId = null; 
 
 // =============================================================================
-// 1. INICIALIZACIÓN Y LISTADO
+// 1. INICIALIZACIÓN
 // =============================================================================
 
 async function inicializarModuloClientes() {
@@ -130,8 +130,9 @@ function abrirModalCliente(id = null) {
         document.getElementById('selCliGenero').value = c.genero || '';
         document.getElementById('txtCliHijos').value = c.hijos !== undefined ? c.hijos : '';
 
-        if(c.fecha_nacimiento) {
-            document.getElementById('txtCliNacimiento').value = _formatearFechaParaInput(c.fecha_nacimiento);
+        // Fecha: Aseguramos formato YYYY-MM-DD
+        if(c.fecha_nacimiento && c.fecha_nacimiento.length >= 10) {
+            document.getElementById('txtCliNacimiento').value = c.fecha_nacimiento.substring(0, 10);
             calcularEdadCliente();
         }
 
@@ -161,8 +162,7 @@ async function consultarDniDesdeModal() {
         if (res.success && res.data) {
             const d = res.data;
             
-            // Log para verificar en consola
-            console.log("Datos recibidos:", d);
+            console.log("🔍 Datos:", d); // Para verificar en consola
 
             document.getElementById('txtCliNombre').value = d.nombre_completo || '';
             
@@ -176,25 +176,21 @@ async function consultarDniDesdeModal() {
             document.getElementById('txtCliProv').value = d.provincia || '';
             document.getElementById('txtCliDist').value = d.distrito || '';
 
-            // Género
+            // Género: Si viene "MASCULINO" (o empieza con M) -> "M"
             if (d.genero) {
-                const g = String(d.genero).toUpperCase().trim();
-                // "F" o "FEMENINO"
-                if (g.startsWith("F") || g.includes("FEM")) {
-                    document.getElementById('selCliGenero').value = 'F';
-                } 
-                // "M" o "MASCULINO"
-                else if (g.startsWith("M")) {
-                    document.getElementById('selCliGenero').value = 'M';
-                }
+                const g = String(d.genero).toUpperCase();
+                if (g.startsWith("F") || g.includes("FEM")) document.getElementById('selCliGenero').value = 'F';
+                else if (g.startsWith("M")) document.getElementById('selCliGenero').value = 'M';
             }
 
-            if (d.hijos !== null && d.hijos !== undefined) document.getElementById('txtCliHijos').value = d.hijos;
+            // Hijos: "0" es válido
+            if (d.hijos !== null && d.hijos !== undefined && d.hijos !== "") {
+                document.getElementById('txtCliHijos').value = d.hijos;
+            }
 
-            // Fecha (AQUÍ ESTÁ LA MAGIA MEJORADA)
+            // Fecha: Viene lista del servidor como YYYY-MM-DD
             if (d.fecha_nacimiento) {
-                const fechaFinal = _formatearFechaParaInput(d.fecha_nacimiento);
-                document.getElementById('txtCliNacimiento').value = fechaFinal;
+                document.getElementById('txtCliNacimiento').value = d.fecha_nacimiento;
                 calcularEdadCliente();
             }
 
@@ -237,38 +233,12 @@ function _extraerIdDrive(url) {
 function _convertirUrlDrive(url, tipo) {
     const id = _extraerIdDrive(url);
     if (!id) return url;
+    
+    // Vista Previa (Thumbnail grande)
     if (tipo === 'view') return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
+    // Descarga (Base de datos)
     if (tipo === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
     return url;
-}
-
-// *** FUNCIÓN DE FECHA MEJORADA ***
-function _formatearFechaParaInput(fechaRaw) {
-    if (!fechaRaw) return "";
-    
-    // 1. Convertir a string
-    const f = String(fechaRaw).trim();
-
-    // 2. Si ya es YYYY-MM-DD (ISO)
-    if (f.match(/^\d{4}-\d{2}-\d{2}$/)) return f;
-
-    // 3. Intento de parseo nativo JS (Maneja "Fri Jan 22 1993...")
-    const fechaObj = new Date(fechaRaw);
-    if (!isNaN(fechaObj.getTime())) {
-        // Es válida, extraemos partes manualmente para evitar zona horaria
-        const y = fechaObj.getFullYear();
-        const m = String(fechaObj.getMonth() + 1).padStart(2, '0');
-        const d = String(fechaObj.getDate()).padStart(2, '0');
-        return `${y}-${m}-${d}`;
-    }
-
-    // 4. Si es DD/MM/YYYY
-    if (f.includes('/')) {
-        const partes = f.split('/');
-        if(partes.length === 3) return `${partes[2]}-${partes[1]}-${partes[0]}`;
-    }
-
-    return ""; // Falló todo
 }
 
 function actualizarPreviewFoto() {
@@ -301,14 +271,21 @@ function calcularEdadCliente() {
     const fechaStr = document.getElementById('txtCliNacimiento').value;
     const lbl = document.getElementById('lblEdadCalculada');
     if (!fechaStr) { lbl.innerText = ""; return; }
-    const nacimiento = new Date(fechaStr);
+    
+    // Convertir YYYY-MM-DD a Date manualmente para evitar zona horaria
+    const partes = fechaStr.split('-');
+    const nacimiento = new Date(partes[0], partes[1] - 1, partes[2]);
     const hoy = new Date();
+    
     let edad = hoy.getFullYear() - nacimiento.getFullYear();
     const mes = hoy.getMonth() - nacimiento.getMonth();
+    
     if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
     if (edad >= 0) lbl.innerText = `Edad: ${edad} años`;
     else lbl.innerText = "Fecha inválida";
 }
+
+// ... (El resto de funciones de guardar y stats se mantienen igual) ...
 
 async function guardarClienteForm() {
     const btn = document.querySelector('#modalCliente .btn-primary');
