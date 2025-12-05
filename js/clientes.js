@@ -1,7 +1,7 @@
 /**
  * js/clientes.js
  * Lógica del Módulo de Clientes (Frontend).
- * VERSIÓN FINAL CRM: Soporte completo para Ubicación, Género e Hijos.
+ * VERSIÓN FINAL: Corrección de Mapeo (Género/Hijos) y Visualización de Fotos.
  */
 
 let listaClientesGlobal = [];
@@ -53,7 +53,7 @@ function renderizarTablaClientes(lista) {
     const listaVisible = lista.slice(0, 100); 
 
     listaVisible.forEach(c => {
-        let urlImg = _convertirUrlDrive(c.foto);
+        let urlImg = _convertirUrlDrive(c.foto, 'view'); // Para tabla usamos VIEW
         const avatar = urlImg 
             ? `<img src="${urlImg}" class="rounded-circle border me-2" style="width:32px;height:32px;object-fit:cover;">`
             : `<div class="rounded-circle bg-light border d-inline-flex align-items-center justify-content-center me-2 text-muted fw-bold" style="width:32px;height:32px;">${c.nombre.charAt(0)}</div>`;
@@ -139,12 +139,12 @@ function abrirModalCliente(id = null) {
         document.getElementById('txtCliNombreCorto').value = c.nombre_corto || '';
         document.getElementById('txtCliFotoUrl').value = c.foto || '';
         
-        // Cargar Datos Extendidos (Nuevos)
+        // Cargar Datos Extendidos
         document.getElementById('txtCliDpto').value = c.departamento || '';
         document.getElementById('txtCliProv').value = c.provincia || '';
         document.getElementById('txtCliDist').value = c.distrito || '';
         document.getElementById('selCliGenero').value = c.genero || '';
-        document.getElementById('txtCliHijos').value = c.hijos || '';
+        document.getElementById('txtCliHijos').value = c.hijos !== undefined ? c.hijos : '';
 
         // Fecha
         if(c.fecha_nacimiento) {
@@ -166,7 +166,7 @@ function abrirModalCliente(id = null) {
 }
 
 // =============================================================================
-// 3. CONSULTA DNI Y MAPEO AUTOMÁTICO
+// 3. CONSULTA DNI Y MAPEO AUTOMÁTICO (AQUÍ ESTÁ LA CORRECCIÓN)
 // =============================================================================
 
 async function consultarDniDesdeModal() {
@@ -188,13 +188,11 @@ async function consultarDniDesdeModal() {
             // 1. Datos Personales
             document.getElementById('txtCliNombre').value = d.nombre_completo || '';
             
-            // Nombre Corto (Usamos el campo "nombres" del script externo o extraemos el primero)
+            // Nombre Corto
             let nombreCorto = '';
             if (d.nombres) {
-                // Si viene separado, tomamos el primer nombre de la cadena "Primer Segundo"
                 nombreCorto = d.nombres.split(' ')[0];
             } else if (d.nombre_completo) {
-                // Fallback
                 nombreCorto = d.nombre_completo.split(' ')[0];
             }
             if(nombreCorto) {
@@ -207,9 +205,19 @@ async function consultarDniDesdeModal() {
             document.getElementById('txtCliProv').value = d.provincia || '';
             document.getElementById('txtCliDist').value = d.distrito || '';
 
-            // 3. Extras
-            if (d.genero) document.getElementById('selCliGenero').value = d.genero; // Asumiendo que viene "M" o "F"
-            if (d.hijos) document.getElementById('txtCliHijos').value = d.hijos;
+            // 3. Extras (CORREGIDO PARA TU DATA)
+            
+            // Mapeo de Género: "FEMENINO" -> "F", "MASCULINO" -> "M"
+            if (d.genero) {
+                const g = d.genero.toUpperCase().trim();
+                if (g.startsWith('F')) document.getElementById('selCliGenero').value = 'F';
+                else if (g.startsWith('M')) document.getElementById('selCliGenero').value = 'M';
+            }
+
+            // Hijos: Aceptamos 0 como valor válido
+            if (d.hijos !== undefined && d.hijos !== null && d.hijos !== "") {
+                document.getElementById('txtCliHijos').value = d.hijos;
+            }
 
             // 4. Fecha y Foto
             if (d.fecha_nacimiento) {
@@ -218,7 +226,9 @@ async function consultarDniDesdeModal() {
             }
 
             if (d.foto) {
-                document.getElementById('txtCliFotoUrl').value = d.foto;
+                // Guardamos el link puro o de descarga en el input hidden
+                document.getElementById('txtCliFotoUrl').value = _convertirUrlDrive(d.foto, 'download');
+                // Actualizamos la vista previa
                 actualizarPreviewFoto();
             }
 
@@ -236,8 +246,9 @@ async function consultarDniDesdeModal() {
     }
 }
 
-// --- UTILIDADES ---
-function _convertirUrlDrive(url) {
+// --- UTILIDADES FOTO DRIVE MEJORADAS ---
+
+function _extraerIdDrive(url) {
     if (!url) return "";
     let id = "";
     const regex1 = /\/file\/d\/([a-zA-Z0-9_-]+)/;
@@ -246,16 +257,31 @@ function _convertirUrlDrive(url) {
     const match2 = url.match(regex2);
     if (match1 && match1[1]) id = match1[1];
     else if (match2 && match2[1]) id = match2[1];
-    if (id) return `https://drive.google.com/uc?export=view&id=${id}`;
-    return url; 
+    return id;
+}
+
+// Función unificada para convertir URL
+function _convertirUrlDrive(url, tipo) {
+    const id = _extraerIdDrive(url);
+    if (!id) return url; // No es drive, retorna original
+    
+    if (tipo === 'view') return `https://drive.google.com/uc?export=view&id=${id}`;
+    if (tipo === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
+    
+    return url;
 }
 
 function _formatearFechaParaInput(fechaRaw) {
     if (!fechaRaw) return "";
-    if (fechaRaw.match(/^\d{4}-\d{2}-\d{2}$/)) return fechaRaw;
-    if (fechaRaw.includes('T')) return fechaRaw.substring(0, 10);
-    if (fechaRaw.includes('/')) {
-        const partes = fechaRaw.split('/');
+    // Asegurar string
+    const f = String(fechaRaw).trim();
+    // YYYY-MM-DD
+    if (f.match(/^\d{4}-\d{2}-\d{2}$/)) return f;
+    // ISO T
+    if (f.includes('T')) return f.substring(0, 10);
+    // DD/MM/YYYY
+    if (f.includes('/')) {
+        const partes = f.split('/');
         if(partes.length === 3) return `${partes[2]}-${partes[1]}-${partes[0]}`;
     }
     return "";
@@ -267,7 +293,8 @@ function actualizarPreviewFoto() {
     const btnVer = document.getElementById('btnVerOriginal');
 
     if (rawUrl) {
-        const urlVisual = _convertirUrlDrive(rawUrl);
+        // Convertir lo que haya en el input a URL de VISTA para el img
+        const urlVisual = _convertirUrlDrive(rawUrl, 'view');
         img.src = urlVisual;
         img.onerror = function() { this.src = 'https://via.placeholder.com/150?text=Error+Url'; };
         btnVer.classList.remove('d-none');
@@ -282,7 +309,9 @@ function cambiarFotoPerfil() {
     const actual = document.getElementById('txtCliFotoUrl').value;
     const nueva = prompt("URL de la nueva foto:", actual);
     if (nueva !== null) {
-        document.getElementById('txtCliFotoUrl').value = nueva.trim();
+        // Aseguramos guardar como descarga
+        const linkLimpio = _convertirUrlDrive(nueva.trim(), 'download');
+        document.getElementById('txtCliFotoUrl').value = linkLimpio;
         actualizarPreviewFoto();
     }
 }
@@ -316,11 +345,9 @@ async function guardarClienteForm() {
         celular: document.getElementById('txtCliCelular').value,
         email: document.getElementById('txtCliEmail').value,
         direccion: document.getElementById('txtCliDireccion').value,
-        
-        // Campos nuevos
         fecha_nacimiento: document.getElementById('txtCliNacimiento').value,
         nombre_corto: document.getElementById('txtCliNombreCorto').value,
-        foto_perfil: document.getElementById('txtCliFotoUrl').value,
+        foto_perfil: document.getElementById('txtCliFotoUrl').value, 
         departamento: document.getElementById('txtCliDpto').value,
         provincia: document.getElementById('txtCliProv').value,
         distrito: document.getElementById('txtCliDist').value,
