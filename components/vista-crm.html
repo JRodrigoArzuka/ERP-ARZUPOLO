@@ -1,11 +1,11 @@
 <div id="view-crm" class="view-section">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="m-0 text-primary"><i class="bi bi-whatsapp"></i> CRM & Notificaciones</h2>
+        <h2 class="m-0 text-primary"><i class="bi bi-whatsapp"></i> CRM & Automatización</h2>
         <div>
             <button class="btn btn-outline-secondary me-2" onclick="cargarCRM()">
                 <i class="bi bi-arrow-clockwise"></i> Recargar
             </button>
-            <button class="btn btn-success fw-bold px-4" onclick="abrirModalCRM()">
+            <button class="btn btn-success fw-bold px-4 shadow-sm" onclick="abrirModalCRM()">
                 <i class="bi bi-plus-lg"></i> Nueva Regla
             </button>
         </div>
@@ -21,12 +21,13 @@
                             <th class="ps-4">ID Plantilla</th>
                             <th>Disparador</th>
                             <th>Condición</th>
+                            <th>Automatización</th>
                             <th>Estado</th>
                             <th class="text-end pe-4">Acción</th>
                         </tr>
                     </thead>
                     <tbody id="tblCrmBody">
-                        <tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
+                        <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -34,81 +35,85 @@
     </div>
 </div>
 
-<!-- MODAL: EDITOR DE REGLA -->
+<!-- MODAL: EDITOR DE REGLA AVANZADO -->
 <div class="modal fade" id="modalCRM" tabindex="-1" data-bs-backdrop="static">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
+            
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title"><i class="bi bi-chat-dots-fill me-2"></i> Editor de Regla</h5>
+                <h5 class="modal-title"><i class="bi bi-robot me-2"></i> Editor de Regla CRM</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body bg-light">
-                <form id="formCRM">
-                    <!-- CONFIGURACIÓN BÁSICA -->
-                    <div class="card border-0 shadow-sm mb-3">
-                        <div class="card-body">
+
+            <div class="modal-body p-0">
+                <!-- NAVEGACIÓN PESTAÑAS -->
+                <ul class="nav nav-tabs nav-fill bg-light fw-bold" id="tabsCRM" role="tablist">
+                    <li class="nav-item">
+                        <button class="nav-link active py-3" data-bs-toggle="tab" data-bs-target="#tab-crm-config">
+                            <i class="bi bi-gear-fill me-1"></i> Configuración
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link py-3" data-bs-toggle="tab" data-bs-target="#tab-crm-mensaje">
+                            <i class="bi bi-chat-text-fill me-1"></i> Mensaje & Archivos
+                        </button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link py-3" data-bs-toggle="tab" data-bs-target="#tab-crm-auto">
+                            <i class="bi bi-lightning-charge-fill me-1"></i> Automatización
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content p-4">
+                    
+                    <!-- TAB 1: CONFIGURACIÓN BÁSICA -->
+                    <div class="tab-pane fade show active" id="tab-crm-config">
+                        <form id="formCRM">
                             <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="small fw-bold">ID Plantilla (Único)</label>
-                                    <input type="text" id="txtCrmId" class="form-control font-monospace" placeholder="ej: notif_nuevo_pedido">
+                                <div class="col-md-8">
+                                    <label class="small fw-bold text-muted">ID Plantilla (Único)</label>
+                                    <input type="text" id="txtCrmId" class="form-control font-monospace fw-bold" placeholder="ej: msg_bienvenida">
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="small fw-bold">Hoja de Aplicación</label>
-                                    <select id="selCrmHoja" class="form-select">
-                                        <option value="Tickets Detallados">Tickets Detallados (Activos)</option>
-                                        <option value="Historial de Entregados">Historial de Entregados (Post-venta)</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-12">
-                                    <div class="form-check form-switch bg-white p-2 border rounded">
+                                <div class="col-md-4">
+                                    <label class="small fw-bold text-muted">Estado Regla</label>
+                                    <div class="form-check form-switch p-2 border rounded bg-light">
                                         <input class="form-check-input ms-0 me-2" type="checkbox" id="chkCrmActivo" checked>
-                                        <label class="form-check-label fw-bold" for="chkCrmActivo">Regla Activa</label>
+                                        <label class="form-check-label fw-bold" for="chkCrmActivo">Activa</label>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
 
-                    <!-- CONFIGURACIÓN DEL DISPARADOR (LÓGICA) -->
-                    <div class="card border-0 shadow-sm mb-3">
-                        <div class="card-header bg-white fw-bold text-muted small">Lógica del Disparador</div>
-                        <div class="card-body">
-                            <div class="row g-3">
+                                <div class="col-12"><hr></div>
+
                                 <div class="col-md-6">
-                                    <label class="small fw-bold">Tipo de Disparador</label>
-                                    <select id="selCrmTipo" class="form-select" onchange="toggleCamposCRM()">
-                                        <option value="Solo por Estado">Solo por Cambio de Estado</option>
-                                        <option value="Días después de Fecha">Días después de Fecha (CRM)</option>
-                                        <option value="Días antes de Fecha">Días antes de Fecha (Recordatorio)</option>
-                                        <option value="En Estado por X Días">En Estado por X Días (Alerta)</option>
+                                    <label class="small fw-bold text-muted">Hoja de Aplicación</label>
+                                    <select id="selCrmHoja" class="form-select">
+                                        <option value="Tickets Detallados">Tickets Detallados (Ventas Activas)</option>
+                                        <option value="Historial de Entregados">Historial (Post-venta)</option>
                                     </select>
                                 </div>
-                                
-                                <div class="col-md-6" id="divCrmEstado">
-                                    <label class="small fw-bold">Estado Requerido</label>
-                                    <select id="selCrmEstado" class="form-select">
-                                        <option value="">Cualquiera</option>
-                                        <option>Nuevo Pedido</option>
-                                        <option>Pendiente</option>
-                                        <option>Pagado</option>
-                                        <option>En Produccion</option>
-                                        <option>Producto Listo</option>
-                                        <option>Enviado</option>
-                                        <option>Listo para Entrega</option>
-                                        <option>Entregado</option>
-                                        <option>Pendiente de Pago</option>
-                                        <option>Pendiente Aprobación</option>
-                                        <option>Aprobado</option>
+                                <div class="col-md-6">
+                                    <label class="small fw-bold text-muted">Tipo de Disparador</label>
+                                    <select id="selCrmTipo" class="form-select" onchange="toggleCamposCRM()">
+                                        <option value="Solo por Estado">Cuando cambia de Estado</option>
+                                        <option value="Días después de Fecha">Días después de una Fecha</option>
+                                        <option value="Días antes de Fecha">Días antes de una Fecha</option>
                                     </select>
                                 </div>
 
-                                <div class="col-md-6 d-none" id="divCrmDias">
-                                    <label class="small fw-bold">Cantidad de Días</label>
+                                <!-- CONDICIONALES DINÁMICOS -->
+                                <div class="col-md-6" id="divCrmEstado">
+                                    <label class="small fw-bold text-muted">Estado Requerido</label>
+                                    <select id="selCrmEstado" class="form-select bg-light border-primary"></select>
+                                </div>
+
+                                <div class="col-md-3 d-none" id="divCrmDias">
+                                    <label class="small fw-bold text-muted">Días</label>
                                     <input type="number" id="numCrmDias" class="form-control" value="0">
                                 </div>
 
                                 <div class="col-md-6 d-none" id="divCrmFechaRef">
-                                    <label class="small fw-bold">Fecha Referencia</label>
+                                    <label class="small fw-bold text-muted">Fecha Referencia</label>
                                     <select id="selCrmFechaRef" class="form-select">
                                         <option value="Fecha Entrega">Fecha Entrega</option>
                                         <option value="Fecha del Evento">Fecha del Evento</option>
@@ -116,32 +121,73 @@
                                     </select>
                                 </div>
                             </div>
-                        </div>
+                        </form>
                     </div>
 
-                    <!-- MENSAJE -->
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-body">
-                            <label class="small fw-bold mb-2">Mensaje WhatsApp</label>
-                            <div class="mb-2">
-                                <span class="badge bg-secondary cursor-pointer" onclick="insertarTag('{{cliente}}')">{{cliente}}</span>
-                                <span class="badge bg-secondary cursor-pointer" onclick="insertarTag('{{ticket}}')">{{ticket}}</span>
-                                <span class="badge bg-secondary cursor-pointer" onclick="insertarTag('{{fecha_entrega}}')">{{fecha_entrega}}</span>
-                                <span class="badge bg-secondary cursor-pointer" onclick="insertarTag('{{pendiente}}')">{{pendiente}}</span>
+                    <!-- TAB 2: MENSAJE Y ARCHIVOS -->
+                    <div class="tab-pane fade" id="tab-crm-mensaje">
+                        <label class="small fw-bold text-muted mb-2">Variables Dinámicas (Clic para insertar)</label>
+                        <div class="mb-3 d-flex flex-wrap gap-1">
+                            <span class="badge bg-secondary cursor-pointer" onclick="insertarTag('{{cliente}}')">Cliente</span>
+                            <span class="badge bg-secondary cursor-pointer" onclick="insertarTag('{{nombre_corto}}')">Nombre Corto</span>
+                            <span class="badge bg-secondary cursor-pointer" onclick="insertarTag('{{ticket}}')"># Ticket</span>
+                            <span class="badge bg-info text-dark cursor-pointer" onclick="insertarTag('{{total}}')">Total</span>
+                            <span class="badge bg-info text-dark cursor-pointer" onclick="insertarTag('{{pendiente}}')">Saldo</span>
+                            <span class="badge bg-warning text-dark cursor-pointer" onclick="insertarTag('{{fecha_entrega}}')">F. Entrega</span>
+                            <span class="badge bg-warning text-dark cursor-pointer" onclick="insertarTag('{{fecha_evento}}')">F. Evento</span>
+                        </div>
+                        
+                        <label class="small fw-bold text-muted">Cuerpo del Mensaje (WhatsApp)</label>
+                        <textarea id="txtCrmMensaje" class="form-control mb-4" rows="5" placeholder="Hola {{nombre_corto}}, tu pedido {{ticket}} está listo..."></textarea>
+
+                        <div class="card bg-light border-0">
+                            <div class="card-body">
+                                <label class="small fw-bold text-muted d-block mb-2"><i class="bi bi-paperclip"></i> Archivo Adjunto (Imagen/PDF)</label>
+                                
+                                <div class="input-group mb-2">
+                                    <input type="file" id="fileCrmAdjunto" class="form-control" accept="image/*,application/pdf">
+                                    <button class="btn btn-primary" type="button" onclick="subirArchivoAdjunto()">
+                                        <i class="bi bi-cloud-upload"></i> Subir
+                                    </button>
+                                </div>
+                                <input type="text" id="txtCrmAdjunto" class="form-control form-control-sm text-muted" placeholder="La URL aparecerá aquí..." readonly>
+                                <small class="text-muted" id="lblEstadoSubida"></small>
                             </div>
-                            <textarea id="txtCrmMensaje" class="form-control" rows="4" placeholder="Hola {{cliente}}..."></textarea>
-                            
-                            <label class="small fw-bold mt-3">URL Adjunto (Opcional)</label>
-                            <input type="text" id="txtCrmAdjunto" class="form-control form-control-sm" placeholder="https://...">
                         </div>
                     </div>
 
-                </form>
+                    <!-- TAB 3: AUTOMATIZACIÓN (NUEVO) -->
+                    <div class="tab-pane fade" id="tab-crm-auto">
+                        <div class="alert alert-info border-0 shadow-sm">
+                            <h6 class="alert-heading fw-bold"><i class="bi bi-magic"></i> Respuesta Automática</h6>
+                            <p class="small mb-0">Configura qué debe hacer el sistema si el cliente responde a este mensaje.</p>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="small fw-bold text-muted">Si el cliente responde (Palabra Clave):</label>
+                                <input type="text" id="txtCrmPalabraClave" class="form-control" placeholder="Ej: APROBADO, CONFIRMO, SI">
+                                <small class="text-muted" style="font-size: 0.75rem;">El sistema buscará esta palabra en la respuesta del cliente.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="small fw-bold text-muted">Cambiar el estado del pedido a:</label>
+                                <select id="selCrmEstadoNuevo" class="form-select bg-light"></select>
+                                <small class="text-muted" style="font-size: 0.75rem;">Acción automática que se ejecutará.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-outline-danger me-auto" id="btnEliminarCRM" onclick="eliminarRegla()">Eliminar</button>
+
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-outline-danger me-auto" id="btnEliminarCRM" onclick="eliminarRegla()">
+                    <i class="bi bi-trash"></i> Eliminar
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                <button type="button" class="btn btn-primary fw-bold" onclick="guardarRegla()">Guardar Regla</button>
+                <button type="button" class="btn btn-primary fw-bold px-4" onclick="guardarRegla()">
+                    <i class="bi bi-save"></i> Guardar Regla
+                </button>
             </div>
         </div>
     </div>

@@ -1,7 +1,7 @@
 /**
  * js/crm.js
- * Lógica para el Gestor de Reglas CRM y Notificaciones.
- * VERSIÓN FINAL: Integración con los 11 Estados del Ciclo de Vida.
+ * Lógica para el Gestor de Reglas CRM y Automatización.
+ * VERSIÓN FINAL: Upload de archivos y Pestañas.
  */
 
 let reglasGlobales = [];
@@ -13,7 +13,7 @@ let estadosGlobales = [];
 
 async function cargarCRM() {
     const tbody = document.getElementById('tblCrmBody');
-    if(tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>';
+    if(tbody) tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary"></div></td></tr>';
 
     try {
         const res = await callAPI(
@@ -21,21 +21,18 @@ async function cargarCRM() {
             'obtenerPlantillasCRM', 
             {}, 
             (datosFrescos) => {
-                if(datosFrescos.success) {
-                    procesarDatosCRM(datosFrescos);
-                }
+                if(datosFrescos.success) procesarDatosCRM(datosFrescos);
             }
         );
         
         if (res && res.success) {
             procesarDatosCRM(res);
         } else if (res) {
-            if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error: ${res.error}</td></tr>`;
+            if(tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error: ${res.error}</td></tr>`;
         }
 
     } catch (e) {
-        console.error(e);
-        if(tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error de red</td></tr>`;
+        if(tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Error de red</td></tr>`;
     }
 }
 
@@ -43,35 +40,34 @@ function procesarDatosCRM(datos) {
     reglasGlobales = datos.plantillas;
     estadosGlobales = datos.listaEstados || [];
     
-    // Si la lista viene vacía, usamos los defaults
+    // Fallback de estados
     if (estadosGlobales.length === 0) {
-        estadosGlobales = [
-            "Nuevo Pedido", "Pendiente de Envio", "Pendiente Aprobación", 
-            "Aprobado", "En Producción", "Producto Listo", "Enviado", 
-            "Entregado", "Anulado", "Registro de Anulacion", "Pendiente de Pago"
-        ];
+        estadosGlobales = ["Nuevo Pedido", "Pendiente", "Pagado", "En Produccion", "Entregado", "Anulado"];
     }
 
-    llenarSelectEstadosCRM();
+    llenarSelectsEstadosCRM();
     renderizarTablaCRM();
 }
 
-function llenarSelectEstadosCRM() {
-    const sel = document.getElementById('selCrmEstado');
-    if(!sel) return;
+function llenarSelectsEstadosCRM() {
+    // Llenar SELECT de Disparador (Tab 1)
+    const selDisparador = document.getElementById('selCrmEstado');
     
-    const valorPrevio = sel.value;
-    sel.innerHTML = '<option value="">Cualquiera</option>';
+    // Llenar SELECT de Acción Automática (Tab 3)
+    const selAccion = document.getElementById('selCrmEstadoNuevo');
+    
+    if(!selDisparador || !selAccion) return;
+    
+    let html = '<option value="">- Seleccionar -</option>';
     
     estadosGlobales.forEach(item => {
         let nombre = item;
-        // Soporte para objetos JSON {nombre, color} si vienen así
         try { if(typeof item === 'string' && item.startsWith('{')) nombre = JSON.parse(item).nombre; } catch(e){}
-        
-        sel.innerHTML += `<option value="${nombre}">${nombre}</option>`;
+        html += `<option value="${nombre}">${nombre}</option>`;
     });
     
-    if(valorPrevio) sel.value = valorPrevio;
+    selDisparador.innerHTML = html;
+    selAccion.innerHTML = html;
 }
 
 function renderizarTablaCRM() {
@@ -80,7 +76,7 @@ function renderizarTablaCRM() {
     tbody.innerHTML = '';
 
     if (reglasGlobales.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No hay reglas configuradas.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No hay reglas configuradas.</td></tr>';
         return;
     }
 
@@ -89,7 +85,13 @@ function renderizarTablaCRM() {
         if (r.tipo_disparador === 'Solo por Estado') {
             detalle = `<span class="badge bg-info text-dark">${r.estado}</span>`;
         } else {
-            detalle = `<span class="badge bg-warning text-dark">${r.dias} días</span> ${r.tipo_disparador.includes('después') ? 'después de' : 'antes de'} ${r.fecha_ref}`;
+            detalle = `<span class="badge bg-warning text-dark">${r.dias} días</span> ${r.tipo_disparador.includes('después') ? 'post' : 'pre'} ${r.fecha_ref}`;
+        }
+
+        // Icono de automatización
+        let autoIcon = '-';
+        if (r.palabra_clave) {
+            autoIcon = `<span class="badge bg-success" title="Si responde '${r.palabra_clave}' -> ${r.estado_nuevo}"><i class="bi bi-lightning-charge-fill"></i> Auto</span>`;
         }
 
         const estadoIcon = r.activo ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-circle text-secondary"></i>';
@@ -99,6 +101,7 @@ function renderizarTablaCRM() {
                 <td class="ps-4 fw-bold font-monospace small">${r.id}</td>
                 <td><small>${r.tipo_disparador}</small></td>
                 <td>${detalle}</td>
+                <td>${autoIcon}</td>
                 <td>${estadoIcon}</td>
                 <td class="text-end pe-4">
                     <button class="btn btn-sm btn-light border" onclick="abrirModalCRM('${r.id}')"><i class="bi bi-pencil"></i></button>
@@ -109,7 +112,7 @@ function renderizarTablaCRM() {
 }
 
 // =============================================================================
-// 2. EDICIÓN Y GUARDADO
+// 2. EDICIÓN Y LÓGICA DE FORMULARIO
 // =============================================================================
 
 function toggleCamposCRM() {
@@ -122,15 +125,10 @@ function toggleCamposCRM() {
         divDias.classList.add('d-none');
         divFecha.classList.add('d-none');
         divEstado.classList.remove('d-none');
-    } else if (tipo === 'En Estado por X Días') {
-        divDias.classList.remove('d-none');
-        divFecha.classList.remove('d-none'); // Fecha referencia sirve como 'Desde cuándo cuento'
-        divEstado.classList.remove('d-none');
     } else {
-        // Días antes/después de fecha
         divDias.classList.remove('d-none');
         divFecha.classList.remove('d-none');
-        divEstado.classList.remove('d-none'); // Opcional, puede filtrar por estado (ej: solo 'Entregado')
+        divEstado.classList.remove('d-none'); 
     }
 }
 
@@ -138,30 +136,42 @@ function abrirModalCRM(id = null) {
     const modal = new bootstrap.Modal(document.getElementById('modalCRM'));
     const btnEliminar = document.getElementById('btnEliminarCRM');
     
-    // Asegurar que el select esté lleno antes de abrir
-    if (document.getElementById('selCrmEstado').options.length <= 1) {
-        llenarSelectEstadosCRM();
-    }
+    // Resetear formulario
+    document.getElementById('formCRM').reset();
+    document.getElementById('txtCrmMensaje').value = '';
+    document.getElementById('txtCrmAdjunto').value = '';
+    document.getElementById('fileCrmAdjunto').value = '';
+    document.getElementById('lblEstadoSubida').innerText = '';
+    
+    // Resetear Tabs
+    const firstTab = document.querySelector('#tabsCRM button[data-bs-target="#tab-crm-config"]');
+    if(firstTab) new bootstrap.Tab(firstTab).show();
 
     if (id) {
         const r = reglasGlobales.find(x => x.id === id);
         if (!r) return;
 
+        // Tab 1: Config
         document.getElementById('txtCrmId').value = r.id;
-        document.getElementById('txtCrmId').disabled = true; // No editar ID
+        document.getElementById('txtCrmId').disabled = true; 
         document.getElementById('selCrmHoja').value = r.hoja_aplicacion;
         document.getElementById('selCrmTipo').value = r.tipo_disparador;
         document.getElementById('selCrmEstado').value = r.estado;
         document.getElementById('numCrmDias').value = r.dias;
         document.getElementById('selCrmFechaRef').value = r.fecha_ref;
+        document.getElementById('chkCrmActivo').checked = r.activo;
+        
+        // Tab 2: Mensaje
         document.getElementById('txtCrmMensaje').value = r.mensaje;
         document.getElementById('txtCrmAdjunto').value = r.adjunto;
-        document.getElementById('chkCrmActivo').checked = r.activo;
+
+        // Tab 3: Automatización (NUEVO)
+        document.getElementById('txtCrmPalabraClave').value = r.palabra_clave || '';
+        document.getElementById('selCrmEstadoNuevo').value = r.estado_nuevo || '';
         
         btnEliminar.classList.remove('d-none');
         btnEliminar.setAttribute('onclick', `eliminarRegla('${id}')`);
     } else {
-        document.getElementById('formCRM').reset();
         document.getElementById('txtCrmId').disabled = false;
         btnEliminar.classList.add('d-none');
     }
@@ -172,7 +182,6 @@ function abrirModalCRM(id = null) {
 
 function insertarTag(tag) {
     const area = document.getElementById('txtCrmMensaje');
-    // Insertar en la posición del cursor si es posible, sino al final
     if (area.selectionStart || area.selectionStart == '0') {
         const startPos = area.selectionStart;
         const endPos = area.selectionEnd;
@@ -181,6 +190,66 @@ function insertarTag(tag) {
         area.value += tag;
     }
 }
+
+// =============================================================================
+// 3. SUBIDA DE ARCHIVOS (NUEVO)
+// =============================================================================
+
+async function subirArchivoAdjunto() {
+    const fileInput = document.getElementById('fileCrmAdjunto');
+    const lblEstado = document.getElementById('lblEstadoSubida');
+    const inputUrl = document.getElementById('txtCrmAdjunto');
+
+    if (fileInput.files.length === 0) {
+        alert("Selecciona un archivo primero.");
+        return;
+    }
+
+    const file = fileInput.files[0];
+    if (file.size > 5 * 1024 * 1024) { // 5MB límite
+        alert("El archivo es muy grande (Máx 5MB).");
+        return;
+    }
+
+    // UI Loading
+    lblEstado.innerHTML = '<span class="spinner-border spinner-border-sm text-primary"></span> Subiendo a Drive...';
+    lblEstado.className = 'text-primary small fw-bold';
+    inputUrl.disabled = true;
+
+    // Leer archivo
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    
+    reader.onload = async function() {
+        const base64 = reader.result.split(',')[1];
+        
+        try {
+            const res = await callAPI('crm', 'subirAdjuntoCRM', {
+                nombre: file.name,
+                mimeType: file.type,
+                base64: base64
+            });
+
+            if (res.success) {
+                inputUrl.value = res.url;
+                lblEstado.innerHTML = '<i class="bi bi-check-circle-fill"></i> Archivo subido y enlazado.';
+                lblEstado.className = 'text-success small fw-bold';
+            } else {
+                lblEstado.innerText = "Error: " + res.error;
+                lblEstado.className = 'text-danger small';
+            }
+        } catch (e) {
+            lblEstado.innerText = "Error de red.";
+            lblEstado.className = 'text-danger small';
+        } finally {
+            inputUrl.disabled = false;
+        }
+    };
+}
+
+// =============================================================================
+// 4. GUARDAR Y ELIMINAR
+// =============================================================================
 
 async function guardarRegla() {
     const id = document.getElementById('txtCrmId').value.trim();
@@ -195,10 +264,17 @@ async function guardarRegla() {
         fecha_ref: document.getElementById('selCrmFechaRef').value,
         mensaje: document.getElementById('txtCrmMensaje').value,
         adjunto: document.getElementById('txtCrmAdjunto').value,
-        activo: document.getElementById('chkCrmActivo').checked
+        activo: document.getElementById('chkCrmActivo').checked,
+        
+        // Campos nuevos
+        palabra_clave: document.getElementById('txtCrmPalabraClave').value.toUpperCase().trim(),
+        estado_nuevo: document.getElementById('selCrmEstadoNuevo').value
     };
 
-    if(!confirm("¿Guardar regla?")) return;
+    if(!confirm("¿Guardar regla CRM?")) return;
+
+    const btn = document.querySelector('#modalCRM .btn-primary');
+    btn.disabled = true; btn.innerText = "Guardando...";
 
     try {
         const res = await callAPI('crm', 'guardarPlantillaCRM', payload);
@@ -210,6 +286,7 @@ async function guardarRegla() {
             alert("⛔ Error: " + res.error);
         }
     } catch(e) { alert("Error de red"); }
+    finally { btn.disabled = false; btn.innerText = "Guardar Regla"; }
 }
 
 async function eliminarRegla(id) {
