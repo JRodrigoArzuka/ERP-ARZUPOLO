@@ -1,7 +1,7 @@
 /**
  * js/gestion_tickets.js
  * Lógica del Frontend para la Super Ventana de Gestión.
- * VERSIÓN OPTIMIZADA: Actualización Instantánea (UI Optimista).
+ * VERSIÓN FINAL CORREGIDA: Galería de Fotos Visible.
  */
 
 let currentTicketID = null;
@@ -19,32 +19,27 @@ async function abrirGestionTicket(idTicket) {
     // Reset UI
     document.getElementById('lblGestionTicketID').innerText = idTicket;
     
-    // Spinners
     const spinner = '<div class="spinner-border spinner-border-sm text-secondary"></div>';
     document.getElementById('tblGestionProductos').innerHTML = `<tr><td colspan="3" class="text-center py-3">${spinner}</td></tr>`;
     document.getElementById('tblHistorialPagosBody').innerHTML = `<tr><td colspan="5" class="text-center py-3">${spinner}</td></tr>`;
+    document.getElementById('galeriaFotos').innerHTML = '<div class="col-12 text-center text-muted">Cargando fotos...</div>';
     
     ['lblResumenSubtotal', 'lblResumenDelivery', 'lblResumenTotal', 'lblResumenAbonado', 'lblResumenPendiente', 'lblPagoAbonado', 'lblPagoPendiente'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.innerText = '...';
     });
 
-    // Reset Inputs
     document.getElementById('txtPagoMonto').value = '';
     document.getElementById('txtPagoOperacion').value = '';
     document.getElementById('filePagoVoucher').value = '';
     document.getElementById('lblFotoVoucher').innerText = 'Seleccionar imagen...';
     
-    // Ocultar Alertas de Saldo
     document.getElementById('alertSaldoPendiente').classList.add('d-none');
     document.getElementById('alertSaldoPagado').classList.add('d-none');
-
-    // Buscador
     document.getElementById('txtGestionBusquedaCliente').value = '';
     document.getElementById('hdnGestionIdCliente').value = '';
     document.getElementById('listaResultadosClientes').style.display = 'none';
 
-    // Tabs
     const firstTabBtn = document.querySelector('#gestionTabs button[data-bs-target="#tab-resumen"]');
     if(firstTabBtn) new bootstrap.Tab(firstTabBtn).show();
     
@@ -82,20 +77,16 @@ async function abrirGestionTicket(idTicket) {
             
             clientesCacheLocal = data.clientes || [];
 
-            // Datos Cliente
             document.getElementById('txtGestionBusquedaCliente').value = cab.cliente_nombre || '';
 
-            // Cálculos Financieros
             const total = Number(cab.total || 0);
             const delivery = Number(cab.costo_delivery || 0);
             const abonado = Number(cab.total_abonado || 0);
             const pendiente = Number(cab.saldo_calculado || 0);
             const subtotal = total - delivery;
 
-            // Renderizar Saldos
             actualizarInterfazSaldos(total, subtotal, delivery, abonado, pendiente);
 
-            // Tabla Historial Pagos
             const tblPagos = document.getElementById('tblHistorialPagosBody');
             tblPagos.innerHTML = '';
             if (pagos.length > 0) {
@@ -106,7 +97,6 @@ async function abrirGestionTicket(idTicket) {
                 tblPagos.innerHTML = '<tr><td colspan="5" class="text-center text-muted fst-italic py-3">Sin pagos registrados.</td></tr>';
             }
 
-            // Logística y Otros
             document.getElementById('swGestionDelivery').checked = log.es_delivery;
             toggleGestionDelivery();
             document.getElementById('txtGestionDireccion').value = log.direccion;
@@ -115,7 +105,9 @@ async function abrirGestionTicket(idTicket) {
             document.getElementById('txtGestionContacto').value = log.contacto;
             document.getElementById('numGestionCostoDelivery').value = delivery;
 
+            // *** AQUÍ RENDERIZAMOS LA GALERÍA ***
             renderizarGaleria(data.multimedia);
+
             llenarSelect('selGestionVendedor', listas.vendedores, cab.id_vendedor);
             llenarSelectSimple('selGestionTipoEvento', listas.tiposEvento, cab.tipo_evento);
             
@@ -134,7 +126,6 @@ async function abrirGestionTicket(idTicket) {
             document.getElementById('dateGestionEvento').value = cab.fecha_evento;
             document.getElementById('dateGestionEntrega').value = cab.fecha_entrega;
 
-            // Contrato
             const divLink = document.getElementById('divContratoLink');
             const divAction = document.getElementById('divContratoActions');
             if (cab.url_contrato && cab.url_contrato.startsWith('http')) {
@@ -149,23 +140,71 @@ async function abrirGestionTicket(idTicket) {
     } catch (e) { console.error(e); }
 }
 
-// Helper para actualizar todos los labels de dinero
+// === NUEVA FUNCIÓN CORREGIDA PARA GALERÍA ===
+function renderizarGaleria(fotos) {
+    const contenedor = document.getElementById('galeriaFotos');
+    contenedor.innerHTML = '';
+
+    if (!fotos || fotos.length === 0) {
+        contenedor.innerHTML = '<div class="col-12 text-center text-muted py-5"><i class="bi bi-images fs-1 d-block mb-2"></i>No hay fotos cargadas.</div>';
+        return;
+    }
+
+    fotos.forEach((foto, index) => {
+        // Convertir URL de descarga a URL de vista para la miniatura
+        const urlVista = _ticketConvertirUrlDrive(foto.url);
+        
+        contenedor.innerHTML += `
+            <div class="col-md-4 col-sm-6">
+                <div class="card h-100 shadow-sm">
+                    <div style="height: 180px; overflow: hidden; background: #f0f0f0;">
+                        <img src="${urlVista}" class="card-img-top" style="height: 100%; object-fit: cover; cursor: pointer;" 
+                             onclick="window.open('${foto.url}', '_blank')">
+                    </div>
+                    <div class="card-body p-2">
+                        <small class="text-muted d-block text-truncate fw-bold">${foto.tipo || 'Foto'}</small>
+                        <p class="card-text small mb-1">${foto.comentario || 'Sin comentario'}</p>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <small class="text-muted" style="font-size: 0.7rem">${foto.fecha || ''}</small>
+                            <button class="btn btn-sm btn-light border" onclick="guardarComentarioFoto('${foto.url}', 'inputComent${index}')"><i class="bi bi-save"></i></button>
+                        </div>
+                        <input type="text" id="inputComent${index}" class="form-control form-control-sm mt-1" placeholder="Editar comentario..." value="${foto.comentario || ''}">
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+}
+
+function _ticketConvertirUrlDrive(url) {
+    if (!url) return "";
+    let id = "";
+    const regex1 = /\/file\/d\/([a-zA-Z0-9_-]+)/;
+    const regex2 = /id=([a-zA-Z0-9_-]+)/;
+    const match1 = url.match(regex1);
+    const match2 = url.match(regex2);
+    if (match1 && match1[1]) id = match1[1];
+    else if (match2 && match2[1]) id = match2[1];
+
+    if (id) return `https://drive.google.com/uc?export=view&id=${id}`;
+    return url;
+}
+
+// ... (Resto del código original de pagos, sálculos y edición) ...
+
 function actualizarInterfazSaldos(total, subtotal, delivery, abonado, pendiente) {
-    // Tab Resumen
     document.getElementById('lblResumenSubtotal').innerText = subtotal.toFixed(2);
     document.getElementById('lblResumenDelivery').innerText = delivery.toFixed(2);
     document.getElementById('lblResumenTotal').innerText = total.toFixed(2);
     document.getElementById('lblResumenAbonado').innerText = abonado.toFixed(2);
     
-    // Tab Pagos
     document.getElementById('lblPagoAbonado').innerText = 'S/ ' + abonado.toFixed(2);
     document.getElementById('lblPagoPendiente').innerText = 'S/ ' + pendiente.toFixed(2);
     
-    // Lógica Visual Deuda (Rojo vs Verde)
     const alertPendiente = document.getElementById('alertSaldoPendiente');
     const alertPagado = document.getElementById('alertSaldoPagado');
     
-    if (pendiente <= 0.05) { // Margen de error
+    if (pendiente <= 0.05) { 
         alertPendiente.classList.add('d-none');
         alertPagado.classList.remove('d-none');
         document.getElementById('lblPagoPendiente').innerText = "0.00";
@@ -188,10 +227,6 @@ function crearFilaPagoHTML(fecha, metodo, operacion, usuario, monto) {
             <td class="text-end fw-bold text-success">S/ ${parseFloat(monto).toFixed(2)}</td>
         </tr>`;
 }
-
-// =============================================================================
-// 2. BUSCADOR PREDICTIVO
-// =============================================================================
 
 function buscarClientePredictivo() {
     const input = document.getElementById('txtGestionBusquedaCliente');
@@ -235,10 +270,6 @@ document.addEventListener('click', function(event) {
     if (event.target !== input && event.target !== lista) lista.style.display = 'none';
 });
 
-// =============================================================================
-// 3. PAGOS Y ACTUALIZACIÓN INSTANTÁNEA
-// =============================================================================
-
 function previewVoucherName() {
     const input = document.getElementById('filePagoVoucher');
     const lbl = document.getElementById('lblFotoVoucher');
@@ -250,7 +281,6 @@ async function registrarPago() {
     const inputMonto = document.getElementById('txtPagoMonto');
     const monto = parseFloat(inputMonto.value);
     
-    // Obtener valores numéricos actuales limpios
     const getVal = (id) => parseFloat(document.getElementById(id).innerText.replace(/[^\d.-]/g, '')) || 0;
     const pendienteActual = getVal('lblPagoPendiente');
     const abonadoActual = getVal('lblPagoAbonado');
@@ -306,38 +336,26 @@ async function registrarPago() {
         const res = await callAPI('finanzas', 'registrarPagoWeb', payload);
         
         if (res.success) {
-            // === ACTUALIZACIÓN OPTIMISTA (INSTANTÁNEA) ===
-            
-            // 1. Cálculos Locales
             const nuevoAbonado = abonadoActual + monto;
             const nuevoPendiente = pendienteActual - monto;
 
-            // 2. Actualizar Interfaz inmediatamente
             actualizarInterfazSaldos(totalVenta, subtotal, delivery, nuevoAbonado, nuevoPendiente);
 
-            // 3. Inyectar fila en Historial
             const tbody = document.getElementById('tblHistorialPagosBody');
             if(tbody.innerText.includes('Sin pagos')) tbody.innerHTML = '';
             
             const fechaHoy = new Date().toLocaleDateString('es-PE') + ' ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             const nuevaFilaHTML = crearFilaPagoHTML(fechaHoy, metodo, operacion, usuario ? usuario.usuario : 'Yo', monto);
             
-            // Insertar al inicio con animación
             tbody.insertAdjacentHTML('afterbegin', nuevaFilaHTML);
             const insertedRow = tbody.firstElementChild;
-            insertedRow.style.backgroundColor = '#d1e7dd'; // Flash verde
+            insertedRow.style.backgroundColor = '#d1e7dd'; 
             setTimeout(() => insertedRow.style.backgroundColor = 'transparent', 2000);
 
-            // 4. Limpiar Formulario
             document.getElementById('filePagoVoucher').value = '';
             document.getElementById('lblFotoVoucher').innerText = 'Seleccionar imagen...';
             document.getElementById('txtPagoOperacion').value = '';
             
-            // 5. Notificación sutil (no alert)
-            // Ya se ve el cambio visualmente, no necesitamos interrumpir
-            // Si quieres un toast: showToast("Pago registrado");
-
-            // 6. Actualizar Dashboard en fondo (Fire & Forget)
             if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
 
         } else {
@@ -350,10 +368,6 @@ async function registrarPago() {
         btn.innerHTML = originalText;
     }
 }
-
-// =============================================================================
-// 4. EDICIÓN, LOGÍSTICA Y OTROS (Sin cambios mayores, solo mantenimiento)
-// =============================================================================
 
 async function guardarEdicion() {
     const nuevoEstado = document.getElementById('selGestionEstado').value;
@@ -389,13 +403,12 @@ async function guardarEdicion() {
         const res = await callAPI('ventas', 'editarDatosTicket', payload);
         if (res.success) {
             alert("✅ Guardado.");
-            if(payload.id_cliente) abrirGestionTicket(currentTicketID); // Recargar si cambió cliente
+            if(payload.id_cliente) abrirGestionTicket(currentTicketID); 
             if(typeof cargarVentasArzuka === 'function') cargarVentasArzuka();
         } else { alert("⛔ Error: " + res.error); }
     } catch (e) { alert("Error conexión."); }
 }
 
-// ... (Resto de funciones: llenarSelect, toggleGestionDelivery, guardarLogistica, etc. se mantienen igual)
 function llenarSelect(id, data, val) { const s=document.getElementById(id); s.innerHTML='<option value="">-</option>'; if(data) data.forEach(i=>{ s.innerHTML+=`<option value="${i.id||i}">${i.nombre||i}</option>`; }); s.value=val; }
 function llenarSelectSimple(id, data, val) { const s=document.getElementById(id); s.innerHTML='<option value="">-</option>'; if(data) data.forEach(i=>{ s.innerHTML+=`<option value="${i}">${i}</option>`; }); s.value=val; }
 function toggleGestionDelivery() { const c=document.getElementById('swGestionDelivery').checked; document.getElementById('panelGestionDelivery').classList.toggle('d-none', !c); }
