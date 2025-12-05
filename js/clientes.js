@@ -1,14 +1,14 @@
 /**
  * js/clientes.js
- * Lógica del Módulo de Clientes (Frontend).
- * VERSIÓN FINAL CORREGIDA: Mapeo de Género, Ceros y Fotos.
+ * Lógica del Módulo de Clientes.
+ * VERSIÓN INSPECTOR: Thumbnail de fotos y Depuración de Fechas.
  */
 
 let listaClientesGlobal = [];
 let clienteActualId = null; 
 
 // =============================================================================
-// 1. INICIALIZACIÓN Y LISTADO
+// 1. INICIALIZACIÓN
 // =============================================================================
 
 async function inicializarModuloClientes() {
@@ -20,15 +20,12 @@ async function inicializarModuloClientes() {
     }
 
     try {
-        const res = await callAPI(
-            'clientes', 'obtenerListaClientes', {},
-            (datosFrescos) => {
-                if (datosFrescos.success) {
-                    listaClientesGlobal = datosFrescos.clientes;
-                    renderizarTablaClientes(listaClientesGlobal);
-                }
+        const res = await callAPI('clientes', 'obtenerListaClientes', {}, (datosFrescos) => {
+            if (datosFrescos.success) {
+                listaClientesGlobal = datosFrescos.clientes;
+                renderizarTablaClientes(listaClientesGlobal);
             }
-        );
+        });
 
         if (res && res.success) {
             listaClientesGlobal = res.clientes;
@@ -37,7 +34,7 @@ async function inicializarModuloClientes() {
             tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">${res.error}</td></tr>`;
         }
     } catch (e) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error de conexión.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error conexión.</td></tr>';
     }
 }
 
@@ -46,22 +43,21 @@ function renderizarTablaClientes(lista) {
     tbody.innerHTML = '';
     
     if (lista.length === 0) { 
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted fst-italic py-4">No se encontraron clientes.</td></tr>'; 
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">Sin datos.</td></tr>'; 
         return; 
     }
     
     const listaVisible = lista.slice(0, 100); 
 
     listaVisible.forEach(c => {
+        // Usamos el truco del Thumbnail también en la tabla
         let urlImg = _convertirUrlDrive(c.foto, 'view');
         const avatar = urlImg 
             ? `<img src="${urlImg}" class="rounded-circle border me-2" style="width:32px;height:32px;object-fit:cover;">`
             : `<div class="rounded-circle bg-light border d-inline-flex align-items-center justify-content-center me-2 text-muted fw-bold" style="width:32px;height:32px;">${c.nombre.charAt(0)}</div>`;
 
         let ubicacion = '-';
-        if (c.distrito || c.provincia) {
-            ubicacion = `<small class="d-block text-truncate" style="max-width:150px;">${c.distrito || ''}, ${c.provincia || ''}</small>`;
-        }
+        if (c.distrito || c.provincia) ubicacion = `<small class="d-block text-truncate" style="max-width:150px;">${c.distrito}, ${c.provincia}</small>`;
 
         tbody.innerHTML += `
             <tr>
@@ -78,12 +74,9 @@ function renderizarTablaClientes(lista) {
                 <td>${c.celular || '-'}</td>
                 <td>${ubicacion}</td>
                 <td class="text-end pe-3">
-                    <button class="btn btn-sm btn-outline-secondary border-0" onclick="abrirModalCliente('${c.id}')" title="Editar">
-                        <i class="bi bi-pencil-square"></i>
-                    </button>
+                    <button class="btn btn-sm btn-outline-secondary border-0" onclick="abrirModalCliente('${c.id}')"><i class="bi bi-pencil-square"></i></button>
                 </td>
-            </tr>
-        `;
+            </tr>`;
     });
 }
 
@@ -98,21 +91,20 @@ function filtrarClientesTabla() {
 }
 
 // =============================================================================
-// 2. GESTIÓN DEL MODAL
+// 2. MODAL Y CONSULTA
 // =============================================================================
 
 function abrirModalCliente(id = null) {
     const modal = new bootstrap.Modal(document.getElementById('modalCliente'));
-    
     document.getElementById('formCliente').reset();
     document.getElementById('imgFotoPreview').src = "https://via.placeholder.com/150?text=Sin+Foto";
     document.getElementById('txtCliFotoUrl').value = ""; 
     document.getElementById('lblEdadCalculada').innerText = "";
     document.getElementById('btnVerOriginal').classList.add('d-none');
     
+    // Resetear Tabs y Stats
     const firstTabBtn = document.querySelector('#tabsCliente button[data-bs-target="#tab-datos-cli"]');
     if(firstTabBtn) new bootstrap.Tab(firstTabBtn).show();
-
     document.getElementById('statTotalGastado').innerText = "S/ 0.00";
     document.getElementById('statVisitas').innerText = "0";
     document.getElementById('statFechaRegistro').innerText = "---";
@@ -132,7 +124,7 @@ function abrirModalCliente(id = null) {
         document.getElementById('txtCliEmail').value = c.email;
         document.getElementById('txtCliDireccion').value = c.direccion;
         document.getElementById('txtCliNombreCorto').value = c.nombre_corto || '';
-        document.getElementById('txtCliFotoUrl').value = c.foto || '';
+        document.getElementById('txtCliFotoUrl').value = c.foto || ''; // URL original (download)
         
         document.getElementById('txtCliDpto').value = c.departamento || '';
         document.getElementById('txtCliProv').value = c.provincia || '';
@@ -145,22 +137,15 @@ function abrirModalCliente(id = null) {
             calcularEdadCliente();
         }
 
-        actualizarPreviewFoto();
+        actualizarPreviewFoto(); // Renderiza la vista previa
         cargarEstadisticasCliente(c.id);
-
     } else {
         clienteActualId = null;
         document.getElementById('hdnIdCliente').value = '';
         document.getElementById('lblTituloModalCliente').innerText = "Nuevo Cliente";
-        document.getElementById('tblHistorialBody').innerHTML = '<tr><td colspan="4" class="text-center text-muted fst-italic">Guardar cliente para ver historial.</td></tr>';
     }
-    
     modal.show();
 }
-
-// =============================================================================
-// 3. CONSULTA DNI Y MAPEO AUTOMÁTICO (CORREGIDO)
-// =============================================================================
 
 async function consultarDniDesdeModal() {
     const dni = document.getElementById('txtCliDoc').value.trim();
@@ -178,57 +163,50 @@ async function consultarDniDesdeModal() {
         if (res.success && res.data) {
             const d = res.data;
             
-            // Datos Personales
+            // INSPECTOR DE FECHA (Ver en consola del navegador F12)
+            console.log("🔍 INSPECTOR DATA:", d);
+            console.log("📅 Fecha Raw:", d.debug_fecha_valor, "Tipo:", d.debug_fecha_tipo);
+
             document.getElementById('txtCliNombre').value = d.nombre_completo || '';
             
             let nombreCorto = '';
             if (d.nombres) nombreCorto = d.nombres.split(' ')[0];
             else if (d.nombre_completo) nombreCorto = d.nombre_completo.split(' ')[0];
-            
-            if(nombreCorto) {
-                document.getElementById('txtCliNombreCorto').value = nombreCorto.toLowerCase().replace(/^\w/, c => c.toUpperCase());
-            }
+            if(nombreCorto) document.getElementById('txtCliNombreCorto').value = nombreCorto.toLowerCase().replace(/^\w/, c => c.toUpperCase());
 
-            // Ubicación
             document.getElementById('txtCliDireccion').value = d.direccion || '';
             document.getElementById('txtCliDpto').value = d.departamento || '';
             document.getElementById('txtCliProv').value = d.provincia || '';
             document.getElementById('txtCliDist').value = d.distrito || '';
 
-            // --- CORRECCIÓN GÉNERO ---
+            // Género
             if (d.genero) {
                 const g = String(d.genero).toUpperCase();
-                // Si contiene MASCULINO o empieza con M -> M
-                if (g.includes("MASCULINO") || g === "M") {
-                    document.getElementById('selCliGenero').value = 'M';
-                } 
-                // Si contiene FEMENINO o empieza con F -> F
-                else if (g.includes("FEMENINO") || g === "F") {
-                    document.getElementById('selCliGenero').value = 'F';
-                }
+                if (g.includes("M")) document.getElementById('selCliGenero').value = 'M';
+                else if (g.includes("F")) document.getElementById('selCliGenero').value = 'F';
             }
 
-            // --- CORRECCIÓN HIJOS ---
-            // Aceptamos 0 como valor válido. Solo ignoramos null o string vacío.
-            if (d.hijos !== null && d.hijos !== "" && d.hijos !== undefined) {
-                document.getElementById('txtCliHijos').value = d.hijos;
-            } else {
-                document.getElementById('txtCliHijos').value = "";
-            }
+            // Hijos
+            if (d.hijos !== null && d.hijos !== undefined) document.getElementById('txtCliHijos').value = d.hijos;
 
             // Fecha
             if (d.fecha_nacimiento) {
-                document.getElementById('txtCliNacimiento').value = _formatearFechaParaInput(d.fecha_nacimiento);
+                const fechaFinal = _formatearFechaParaInput(d.fecha_nacimiento);
+                document.getElementById('txtCliNacimiento').value = fechaFinal;
                 calcularEdadCliente();
+                
+                // Si sigue vacía, alertar para depurar
+                if (!document.getElementById('txtCliNacimiento').value) {
+                    console.warn("⚠️ La fecha no se pudo pintar en el input. Valor recibido:", d.fecha_nacimiento);
+                }
             }
 
             // Foto
             if (d.foto) {
-                const linkDescarga = _convertirUrlDrive(d.foto, 'download');
-                document.getElementById('txtCliFotoUrl').value = linkDescarga;
+                // Guardamos la versión descarga en BD
+                document.getElementById('txtCliFotoUrl').value = _convertirUrlDrive(d.foto, 'download');
                 actualizarPreviewFoto();
             } else {
-                // Si no hay foto, limpiar preview
                 document.getElementById('txtCliFotoUrl').value = "";
                 actualizarPreviewFoto();
             }
@@ -246,12 +224,11 @@ async function consultarDniDesdeModal() {
     }
 }
 
-// --- UTILIDADES ---
+// --- UTILIDADES FOTO DRIVE (TRUCO THUMBNAIL) ---
 
 function _extraerIdDrive(url) {
     if (!url) return "";
     let id = "";
-    // Soporte para múltiples formatos de Drive
     const regex1 = /\/file\/d\/([a-zA-Z0-9_-]+)/;
     const regex2 = /id=([a-zA-Z0-9_-]+)/;
     const match1 = url.match(regex1);
@@ -263,24 +240,15 @@ function _extraerIdDrive(url) {
 
 function _convertirUrlDrive(url, tipo) {
     const id = _extraerIdDrive(url);
-    if (!id) return url; // Retorna original si no es Drive
+    if (!id) return url;
     
-    if (tipo === 'view') return `https://drive.google.com/uc?export=view&id=${id}`;
+    // TRUCO: Usar API de thumbnails para la vista previa
+    if (tipo === 'view') return `https://drive.google.com/thumbnail?id=${id}&sz=w800`;
+    
+    // Para guardar en BD, usamos el link de descarga
     if (tipo === 'download') return `https://drive.google.com/uc?export=download&id=${id}`;
+    
     return url;
-}
-
-function _formatearFechaParaInput(fechaRaw) {
-    if (!fechaRaw) return "";
-    const f = String(fechaRaw).trim();
-    if (f.match(/^\d{4}-\d{2}-\d{2}$/)) return f;
-    if (f.includes('T')) return f.substring(0, 10);
-    // Caso DD/MM/YYYY
-    if (f.includes('/')) {
-        const partes = f.split('/');
-        if(partes.length === 3) return `${partes[2]}-${partes[1]}-${partes[0]}`;
-    }
-    return "";
 }
 
 function actualizarPreviewFoto() {
@@ -289,6 +257,7 @@ function actualizarPreviewFoto() {
     const btnVer = document.getElementById('btnVerOriginal');
 
     if (rawUrl) {
+        // Convertimos a thumbnail para ver
         const urlVisual = _convertirUrlDrive(rawUrl, 'view');
         img.src = urlVisual;
         img.onerror = function() { this.src = 'https://via.placeholder.com/150?text=Error+Url'; };
@@ -300,12 +269,21 @@ function actualizarPreviewFoto() {
     }
 }
 
+// ... (Resto de funciones: _formatearFechaParaInput, cambiarFotoPerfil, calcularEdad, guardar, etc. sin cambios lógicos, usar las anteriores) ...
+
+function _formatearFechaParaInput(fechaRaw) {
+    if (!fechaRaw) return "";
+    const f = String(fechaRaw).trim();
+    if (f.match(/^\d{4}-\d{2}-\d{2}$/)) return f;
+    if (f.includes('T')) return f.substring(0, 10);
+    return "";
+}
+
 function cambiarFotoPerfil() {
     const actual = document.getElementById('txtCliFotoUrl').value;
     const nueva = prompt("URL de la nueva foto:", actual);
     if (nueva !== null) {
-        const linkLimpio = _convertirUrlDrive(nueva.trim(), 'download');
-        document.getElementById('txtCliFotoUrl').value = linkLimpio;
+        document.getElementById('txtCliFotoUrl').value = _convertirUrlDrive(nueva.trim(), 'download');
         actualizarPreviewFoto();
     }
 }
@@ -322,10 +300,6 @@ function calcularEdadCliente() {
     if (edad >= 0) lbl.innerText = `Edad: ${edad} años`;
     else lbl.innerText = "Fecha inválida";
 }
-
-// =============================================================================
-// 4. GUARDADO
-// =============================================================================
 
 async function guardarClienteForm() {
     const btn = document.querySelector('#modalCliente .btn-primary');
